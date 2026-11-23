@@ -7,11 +7,11 @@ export default defineConfig({
     host: '0.0.0.0',
     port: process.env.PORT ? parseInt(process.env.PORT, 10) : 4173,
     strictPort: false,
-    allowedHosts: ['hack2skillchalange6.onrender.com', '.onrender.com', 'localhost', '127.0.0.1'],
+    allowedHosts: true,
   },
   server: {
     host: '0.0.0.0',
-    allowedHosts: ['hack2skillchalange6.onrender.com', '.onrender.com', 'localhost', '127.0.0.1'],
+    allowedHosts: true,
   },
   build: {
     target: 'es2020',
@@ -28,6 +28,6 @@ export default defineConfig({
   },
   test: {
     globals: true,
-    environment: 'node',
+    environment: 'jsdom',
   },
 });

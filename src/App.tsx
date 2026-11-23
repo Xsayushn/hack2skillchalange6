@@ -1,17 +1,17 @@
-import React, { useState, useEffect, useCallback, useMemo, Suspense, lazy } from 'react';
-import { CITIES_DATA } from './data/cityDefaults';
+import React, { useState, useEffect, useCallback, useMemo, Suspense, lazy, useRef } from 'react';
+import { CITIES_DATA, validateHouseholdProfile } from './data/cityDefaults';
 import { UserFamilyProfile, RoutineItem, UserImpactMetrics, CityData } from './types/aqi';
 import { AssistantContext } from './types/assistant';
 import { generateDailyRoutines, computeOverallImpact } from './services/impactCalculator';
-import { fetchLiveAqi, KNOWN_CITY_COORDINATES } from './services/aqiApi';
+import { fetchLiveAqi, KNOWN_CITY_COORDINATES, CityCoordinates } from './services/aqiApi';
 import { Navbar } from './components/Navbar';
 import { ApiKeyModal } from './components/ApiKeyModal';
 import { AqiHeroCard } from './components/AqiHeroCard';
 import { ProfileSelector } from './components/ProfileSelector';
 import { ImpactTracker } from './components/ImpactTracker';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, AlertCircle } from 'lucide-react';
 
-// Code splitting & lazy-loaded route tabs for optimal performance and minimal initial bundle size
+// Code splitting & lazy-loaded route tabs for minimal initial bundle
 const RoutinePlanner = lazy(() =>
   import('./components/RoutinePlanner').then((m) => ({ default: m.RoutinePlanner }))
 );
@@ -23,12 +23,15 @@ const AiAssistantChat = lazy(() =>
 );
 
 const STORAGE_KEY_PROFILE = 'aeroguardian_profile';
-const STORAGE_KEY_APIKEY = 'aeroguardian_gemini_key';
 const STORAGE_KEY_CONTRAST = 'aeroguardian_contrast';
 
 const TabLoadingFallback: React.FC = () => (
-  <div className="p-12 text-center flex flex-col items-center justify-center gap-3 bg-white rounded-3xl border border-slate-200 shadow-sm" role="status" aria-live="polite">
-    <RefreshCw className="w-6 h-6 animate-spin text-emerald-600" />
+  <div
+    className="p-12 text-center flex flex-col items-center justify-center gap-3 bg-white rounded-3xl border border-slate-200 shadow-sm"
+    role="status"
+    aria-live="polite"
+  >
+    <RefreshCw className="w-6 h-6 animate-spin text-emerald-600" aria-hidden="true" />
     <span className="text-sm font-medium text-slate-600">Loading module...</span>
   </div>
 );
@@ -36,108 +39,186 @@ const TabLoadingFallback: React.FC = () => (
 export const App: React.FC = () => {
   const [citiesList, setCitiesList] = useState<CityData[]>(CITIES_DATA);
   const [selectedCityId, setSelectedCityId] = useState<string>('delhi');
-  const [dataSourceLabel, setDataSourceLabel] = useState<string>('CAMS Forecast');
+  const [dataSourceLabel, setDataSourceLabel] = useState<string>('Numerical Model Forecast');
   const [isLiveLoading, setIsLiveLoading] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'routines' | 'iaq' | 'chat'>('dashboard');
+  const [telemetryError, setTelemetryError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'routines' | 'iaq' | 'chat'>(
+    'dashboard'
+  );
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState<boolean>(false);
-  const [apiKey, setApiKey] = useState<string>(() => localStorage.getItem(STORAGE_KEY_APIKEY) || '');
-  const [highContrast, setHighContrast] = useState<boolean>(() => localStorage.getItem(STORAGE_KEY_CONTRAST) === 'true');
 
+  // Security rule: Memory-only key handling by default (never persisted to localStorage)
+  const [apiKey, setApiKey] = useState<string>('');
+
+  const [highContrast, setHighContrast] = useState<boolean>(() => {
+    return localStorage.getItem(STORAGE_KEY_CONTRAST) === 'true';
+  });
+
+  // Track request sequence to prevent out-of-order race conditions
+  const requestSeqRef = useRef<number>(0);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Runtime-validated profile
   const [familyProfile, setFamilyProfile] = useState<UserFamilyProfile>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY_PROFILE);
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error(e);
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_PROFILE);
+      if (saved) {
+        return validateHouseholdProfile(JSON.parse(saved));
       }
+    } catch {
+      // Fallback
     }
-    return {
-      name: 'My Household',
-      cityId: 'delhi',
-      vulnerabilities: ['Infant/Child', 'Respiratory/Asthma'],
-      dailyCommuteMode: 'Private Car',
-      commuteDistanceKm: 18,
-      hasAirPurifier: true,
-      homeType: 'Apartment',
-      childrenCount: 1,
-      elderlyCount: 1
-    };
+    return validateHouseholdProfile(null);
   });
 
   const currentCity = useMemo(() => {
     return citiesList.find((c) => c.id === selectedCityId) || citiesList[0];
   }, [citiesList, selectedCityId]);
 
-  const loadLiveAqi = useCallback(async (cityId: string) => {
-    const coords = KNOWN_CITY_COORDINATES.find((c) => c.id === cityId);
-    if (!coords) return;
-    setIsLiveLoading(true);
-    try {
-      const result = await fetchLiveAqi(coords);
-      setCitiesList((prev) =>
-        prev.map((c) => (c.id === cityId ? result.cityData : c))
-      );
-      setDataSourceLabel(`CAMS Forecast (${result.timestamp})`);
-    } catch {
-      setDataSourceLabel('Offline Backup Model');
-    } finally {
-      setIsLiveLoading(false);
-    }
-  }, []);
+  // Load telemetry with coordinate caching, sequence validation, and cancellation
+  const loadLiveAqi = useCallback(
+    async (cityId: string, bypassCache: boolean = false) => {
+      // If it's a custom manual estimate with no coordinates, don't query external API
+      const foundCity = citiesList.find((c) => c.id === cityId);
+      if (foundCity?.isCustomCity) {
+        setDataSourceLabel('Manual User Estimate');
+        setTelemetryError(null);
+        return;
+      }
+
+      const coords =
+        KNOWN_CITY_COORDINATES.find((c) => c.id === cityId) ||
+        (foundCity?.lat && foundCity?.lon
+          ? {
+              id: foundCity.id,
+              name: foundCity.name,
+              country: foundCity.country,
+              lat: foundCity.lat,
+              lon: foundCity.lon,
+            }
+          : null);
+
+      if (!coords) return;
+
+      // Abort any obsolete in-flight request
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
+      const currentSeq = ++requestSeqRef.current;
+      setIsLiveLoading(true);
+      setTelemetryError(null);
+
+      try {
+        const result = await fetchLiveAqi(coords, {
+          bypassCache,
+          signal: controller.signal,
+        });
+
+        // Guard against race conditions
+        if (currentSeq !== requestSeqRef.current) {
+          return;
+        }
+
+        setCitiesList((prev) => prev.map((c) => (c.id === cityId ? result.cityData : c)));
+        setDataSourceLabel(result.isCached ? 'Cached CAMS Model' : 'Live CAMS Model');
+        setTelemetryError(null);
+      } catch (err: unknown) {
+        if (currentSeq !== requestSeqRef.current) return;
+        if (err instanceof DOMException && err.name === 'AbortError') return;
+
+        const msg = err instanceof Error ? err.message : 'Network error';
+        setTelemetryError(`Could not refresh telemetry (${msg}). Displaying offline baseline.`);
+        setDataSourceLabel('Offline Demo Preset');
+      } finally {
+        if (currentSeq === requestSeqRef.current) {
+          setIsLiveLoading(false);
+        }
+      }
+    },
+    [citiesList]
+  );
 
   useEffect(() => {
-    loadLiveAqi(selectedCityId);
+    loadLiveAqi(selectedCityId, false);
+  }, [selectedCityId, loadLiveAqi]);
+
+  const handleRefreshLive = useCallback(() => {
+    loadLiveAqi(selectedCityId, true);
   }, [selectedCityId, loadLiveAqi]);
 
   const handleDetectLocation = useCallback(() => {
     if (!navigator.geolocation) {
-      alert('Geolocation is not supported by your browser.');
+      setTelemetryError('Geolocation is not supported by your browser.');
       return;
     }
+
     setIsLiveLoading(true);
+    setTelemetryError(null);
+
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+        const gpsId = `gps-${lat.toFixed(2)}-${lon.toFixed(2)}`;
+
+        const gpsCityCoords: CityCoordinates = {
+          id: gpsId,
+          name: 'Your GPS Location',
+          country: 'Local Coordinates',
+          lat,
+          lon,
+        };
+
         try {
-          const userCoords = {
-            id: 'my-location',
-            name: 'Local GPS Station',
-            country: 'Live Geo',
-            lat: pos.coords.latitude,
-            lon: pos.coords.longitude
-          };
-          const res = await fetchLiveAqi(userCoords);
-          setCitiesList((prev) => [res.cityData, ...prev.filter((c) => c.id !== 'my-location')]);
-          setSelectedCityId(res.cityData.id);
-          setDataSourceLabel(`Location-Based Estimate (${res.timestamp})`);
+          const result = await fetchLiveAqi(gpsCityCoords, { bypassCache: true });
+          setCitiesList((prev) => {
+            const filtered = prev.filter((c) => c.id !== gpsId);
+            return [result.cityData, ...filtered];
+          });
+          setSelectedCityId(gpsId);
+          setDataSourceLabel('Live CAMS Model (GPS)');
+          setTelemetryError(null);
         } catch {
-          alert('Could not fetch air quality for your exact GPS coordinates.');
+          setTelemetryError('Failed to fetch atmospheric model for your GPS coordinates.');
         } finally {
           setIsLiveLoading(false);
         }
       },
       () => {
         setIsLiveLoading(false);
-        alert('Location access denied. Please select a city from the list.');
-      }
+        setTelemetryError('Location permission denied. Please select a city from the list.');
+      },
+      { timeout: 10000 }
     );
   }, []);
 
   const handleAddCustomCity = useCallback((newCity: CityData) => {
     setCitiesList((prev) => [newCity, ...prev]);
     setSelectedCityId(newCity.id);
-    setDataSourceLabel('User Custom Estimate');
+    setDataSourceLabel('Manual User Estimate');
+    setTelemetryError(null);
   }, []);
 
+  // Routines state
   const [routines, setRoutines] = useState<RoutineItem[]>(() => {
-    return generateDailyRoutines(familyProfile, currentCity.currentAqi, currentCity.pollutants.pm25);
+    return generateDailyRoutines(
+      familyProfile,
+      currentCity.currentAqi,
+      currentCity.pollutants.pm25
+    );
   });
 
-  // Re-generate routines when city, live sensor pollutants, or profile commute changes
+  // Re-generate routines when city or commute mode changes
   useEffect(() => {
     setRoutines((prevRoutines) => {
-      const fresh = generateDailyRoutines(familyProfile, currentCity.currentAqi, currentCity.pollutants.pm25);
-      // Preserve adopted state
+      const fresh = generateDailyRoutines(
+        familyProfile,
+        currentCity.currentAqi,
+        currentCity.pollutants.pm25
+      );
       return fresh.map((r) => {
         const found = prevRoutines.find((p) => p.id === r.id);
         return found ? { ...r, isAdopted: found.isAdopted } : r;
@@ -148,22 +229,30 @@ export const App: React.FC = () => {
     currentCity.currentAqi,
     currentCity.pollutants.pm25,
     familyProfile.commuteDistanceKm,
-    familyProfile.dailyCommuteMode
+    familyProfile.dailyCommuteMode,
   ]);
 
-  // Persist profile
+  // Persist household profile safely
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY_PROFILE, JSON.stringify(familyProfile));
+    try {
+      localStorage.setItem(STORAGE_KEY_PROFILE, JSON.stringify(familyProfile));
+    } catch {
+      // Storage unavailable
+    }
   }, [familyProfile]);
 
-  // Handle contrast toggle
+  // Handle high contrast
   useEffect(() => {
     if (highContrast) {
       document.body.classList.add('high-contrast');
     } else {
       document.body.classList.remove('high-contrast');
     }
-    localStorage.setItem(STORAGE_KEY_CONTRAST, String(highContrast));
+    try {
+      localStorage.setItem(STORAGE_KEY_CONTRAST, String(highContrast));
+    } catch {
+      // Storage unavailable
+    }
   }, [highContrast]);
 
   const handleToggleRoutine = useCallback((routineId: string) => {
@@ -172,41 +261,37 @@ export const App: React.FC = () => {
     );
   }, []);
 
-  const handleSaveApiKey = useCallback((key: string, isEphemeral?: boolean) => {
-    setApiKey(key);
-    if (key && !isEphemeral) {
-      localStorage.setItem(STORAGE_KEY_APIKEY, key);
-    } else {
-      localStorage.removeItem(STORAGE_KEY_APIKEY);
-    }
+  // API key stored purely in memory
+  const handleSaveApiKey = useCallback((key: string) => {
+    setApiKey(key.trim());
   }, []);
 
-  // Memoized impact metrics to eliminate redundant calculations
+  // Memoized impact metrics without artificial multipliers
   const impactMetrics: UserImpactMetrics = useMemo(() => {
     return computeOverallImpact(routines, familyProfile);
   }, [routines, familyProfile]);
 
-  // Memoized assistant context
+  // Memoized assistant context with stagnation risk
   const assistantContext: AssistantContext = useMemo(() => {
     return {
       cityName: currentCity.name,
       currentAqi: currentCity.currentAqi,
       aqiCategory: currentCity.category,
       pm25: currentCity.pollutants.pm25,
-      inversionLayerActive: currentCity.inversionLayerActive,
+      estimatedStagnationRisk: currentCity.estimatedStagnationRisk,
       vulnerabilities: familyProfile.vulnerabilities,
       hasPurifier: familyProfile.hasAirPurifier,
-      commuteMode: familyProfile.dailyCommuteMode
+      commuteMode: familyProfile.dailyCommuteMode,
     };
   }, [
     currentCity.name,
     currentCity.currentAqi,
     currentCity.category,
     currentCity.pollutants.pm25,
-    currentCity.inversionLayerActive,
+    currentCity.estimatedStagnationRisk,
     familyProfile.vulnerabilities,
     familyProfile.hasAirPurifier,
-    familyProfile.dailyCommuteMode
+    familyProfile.dailyCommuteMode,
   ]);
 
   return (
@@ -220,35 +305,31 @@ export const App: React.FC = () => {
         setActiveTab={setActiveTab}
       />
 
-      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8 space-y-8" role="main">
-        {/* Top Summary Banner */}
-        <div className="bg-gradient-to-r from-emerald-800 to-teal-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-          <div>
-            <span className="text-xs font-bold uppercase tracking-widest text-emerald-300 bg-emerald-950/60 px-3 py-1 rounded-full border border-emerald-700/50">
-              Winter Smog &amp; Urban Air Quality Command
-            </span>
-            <h1 className="text-3xl sm:text-4xl font-black mt-2 tracking-tight">
-              AeroGuardian Assistant
-            </h1>
-            <p className="text-xs sm:text-sm text-emerald-100 max-w-2xl mt-1 leading-relaxed">
-              Empowering families and communities to navigate hazardous thermal smog, deploy low-cost indoor filters, adopt low-emission routines, and quantify direct health protection.
-            </p>
-          </div>
-
-          <div className="flex gap-2.5">
+      {/* Accessible Inline Notification Banner */}
+      {telemetryError && (
+        <div
+          className="bg-amber-50 border-b border-amber-200 px-4 py-2.5 text-xs text-amber-900 flex items-center justify-between"
+          role="alert"
+          aria-live="polite"
+        >
+          <div className="max-w-7xl mx-auto flex items-center gap-2 w-full">
+            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" aria-hidden="true" />
+            <span>{telemetryError}</span>
             <button
-              onClick={() => setActiveTab('chat')}
-              className="px-5 py-3 rounded-2xl bg-white text-emerald-900 font-extrabold text-xs sm:text-sm shadow-md hover:bg-emerald-50 transition-all flex items-center gap-2"
+              type="button"
+              onClick={() => loadLiveAqi(selectedCityId, true)}
+              className="ml-auto underline font-bold hover:text-amber-950 focus-visible:ring-2 focus-visible:ring-amber-500 rounded px-1"
             >
-              <span>Consult AI Assistant</span>
-              <span className="text-emerald-600">→</span>
+              Retry
             </button>
           </div>
         </div>
+      )}
 
-        {/* Tab 1: Dashboard (AQI, Inversion Forecast, Persona Selector) */}
+      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+        {/* Tab 1: Dashboard */}
         {activeTab === 'dashboard' && (
-          <div className="space-y-8 animate-fadeIn">
+          <div className="space-y-8">
             <AqiHeroCard
               city={currentCity}
               onCityChange={(id) => setSelectedCityId(id)}
@@ -256,70 +337,65 @@ export const App: React.FC = () => {
               onAddCustomCity={handleAddCustomCity}
               dataSourceLabel={dataSourceLabel}
               isLiveLoading={isLiveLoading}
-              onRefreshLive={() => loadLiveAqi(selectedCityId)}
+              onRefreshLive={handleRefreshLive}
               onDetectLocation={handleDetectLocation}
             />
 
-            <ProfileSelector
-              profile={familyProfile}
-              onChange={(updated) => setFamilyProfile(updated)}
-            />
+            <ProfileSelector profile={familyProfile} onChange={setFamilyProfile} />
 
             <ImpactTracker metrics={impactMetrics} />
           </div>
         )}
 
-        {/* Tab 2: Routines & Impact (Lazy-loaded with Suspense) */}
+        {/* Tab 2: Routines & Impact */}
         {activeTab === 'routines' && (
           <Suspense fallback={<TabLoadingFallback />}>
-            <div className="space-y-8 animate-fadeIn">
+            <div className="space-y-8">
+              <RoutinePlanner routines={routines} onToggleRoutine={handleToggleRoutine} />
               <ImpactTracker metrics={impactMetrics} />
-              <RoutinePlanner
-                routines={routines}
-                onToggleRoutine={handleToggleRoutine}
-              />
             </div>
           </Suspense>
         )}
 
-        {/* Tab 3: Indoor Air Hacks (Lazy-loaded with Suspense) */}
+        {/* Tab 3: IAQ Hacks */}
         {activeTab === 'iaq' && (
           <Suspense fallback={<TabLoadingFallback />}>
-            <div className="space-y-8 animate-fadeIn">
-              <IaqHacksGuide />
-            </div>
+            <IaqHacksGuide />
           </Suspense>
         )}
 
-        {/* Tab 4: GenAI Assistant (Lazy-loaded with Suspense) */}
+        {/* Tab 4: AI Chat */}
         {activeTab === 'chat' && (
           <Suspense fallback={<TabLoadingFallback />}>
-            <div className="space-y-8 animate-fadeIn">
-              <AiAssistantChat
-                context={assistantContext}
-                apiKey={apiKey}
-              />
-            </div>
+            <AiAssistantChat context={assistantContext} apiKey={apiKey} />
           </Suspense>
         )}
       </main>
 
-      {/* Footer with Compliance & Evaluation notes */}
-      <footer className="bg-white border-t border-slate-200 py-6 mt-12 transition-colors">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-4">
+      {/* Footer */}
+      <footer
+        className="bg-white border-t border-slate-200 mt-12 py-8 text-xs text-slate-500"
+        role="contentinfo"
+      >
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div>
-            <strong>AeroGuardian</strong> — GenAI Urban Air Quality Assistant (Challenge 6)
+            <p className="font-semibold text-slate-700">
+              AeroGuardian — GenAI Urban Air Quality Assistant
+            </p>
+            <p className="text-[11px] mt-0.5">
+              Atmospheric numerical forecast telemetry powered by Copernicus Atmosphere Monitoring
+              Service (CAMS) & Open-Meteo.
+            </p>
           </div>
-          <div className="flex items-center gap-4">
-            <span>WCAG 2.1 AA Foundations</span>
+          <div className="flex items-center gap-4 text-slate-600">
+            <span>WHO Air Quality Guidelines (2021)</span>
             <span>•</span>
-            <span>WHO &amp; US-EPA Air Quality Standards</span>
-            <span>•</span>
-            <span>Single Branch (main)</span>
+            <span>US-EPA AP-42</span>
           </div>
         </div>
       </footer>
 
+      {/* In-Memory Api Key Modal */}
       <ApiKeyModal
         isOpen={isApiKeyModalOpen}
         onClose={() => setIsApiKeyModalOpen(false)}

@@ -1,153 +1,135 @@
 # 🌬️ AeroGuardian | GenAI Urban Air Quality Assistant
 > **PromptWars Virtual — [Challenge 6] Urban Air Quality Assistant**  
-> *Helping families, schools, and urban communities navigate severe winter smog, thermal inversions, and hazardous particulate pollution.*
+> *Translating atmospheric numerical model telemetry into defensible exposure mitigation, low-emission daily routines, and home air safety.*
 
 ---
 
 ## 📌 Executive Summary
 
-During winter months, northern and inland urban basins (such as Delhi NCR, Lahore, Beijing, Milan, and Los Angeles) suffer from severe **meteorological thermal inversions** where cold, stagnant ground air is trapped by a warmer lid aloft. Conventional air quality apps provide static AQI numbers without explaining:
-1. **Why smog spikes at dawn and dusk** (boundary layer contraction) and when safe ventilation windows occur.
-2. **How to protect vulnerable family members** (infants breathing 50% more air per kg, asthma patients, pregnant women, and elderly citizens).
-3. **Practical, low-cost indoor hacks** (such as DIY **Corsi-Rosenthal boxes** delivering >450 CFM CADR at 80% lower cost than commercial purifiers).
-4. **Quantified direct impact** (kilograms of CO₂ prevented and micrograms of PM2.5 lung inhalation eliminated).
+During winter months, inland urban basins (such as Delhi NCR, Lahore, Beijing, the Po Valley, and Los Angeles) frequently experience severe surface-layer air pollution. Cold ground air combined with light winds creates stagnant boundary layer conditions that trap vehicular exhaust, biomass smoke, and industrial particulate matter close to breathing height.
 
-**AeroGuardian** is a GenAI-powered web application that delivers proactive, personalized, and scientifically grounded air quality recommendations backed by **live Open-Meteo / Copernicus CAMS atmospheric models**.
+Conventional air quality tools report scalar index numbers (e.g. "AQI 320") without providing:
+1. **Atmospheric Context**: Distinguishing numerical meteorological model predictions (e.g., Copernicus Atmosphere Monitoring Service) from physical ground sensors, and explaining surface-layer stagnation dynamics without claiming unverified thermal inversions.
+2. **Defensible Exposure Math**: Transparently modeling estimated inhaled PM2.5 mass (based on EPA minute ventilation rates) rather than conflating it with clinical lung-deposited dose.
+3. **Safety-Audited Household Protocols**: Practical DIY filtration designs (such as the Corsi-Rosenthal box) with explicit fan electrical cautions, non-flame draft checks, and life-safety rules regarding combustion-air vents.
+4. **Transparent Commute Deltas**: Empirical transportation $\text{CO}_2$ deltas (based on EPA AP-42 and DEFRA conversion factors) that only claim savings when transitioning from higher-emitting modes.
+
+AeroGuardian is an open-source, client-side web application pairing **live Open-Meteo & Copernicus CAMS numerical model forecasts** with an **in-memory Google Gemini 3.8 Flash reasoning assistant** and an **offline deterministic heuristic engine**.
 
 ---
 
-## 🎯 1. Chosen Vertical & Challenge Alignment
+## 🎯 1. Challenge Alignment
 
 * **Vertical**: **Challenge 6 — Urban Air Quality Assistant**
-* **Target Audience**: Urban families, apartment dwellers, schools, sensitive individuals (asthma, cardiovascular, infants, elderly), and daily commuters.
-* **Core Philosophy**: Transform abstract air pollution metrics into **concrete daily routines**, **affordable indoor protection**, and **quantified personal impact**.
+* **Target Audience**: Urban families, schools, sensitive groups (asthma, cardiovascular, infants, elderly), and daily commuters.
+* **Core Philosophy**: Prioritize scientific defensibility over exaggerated claims. Never invent pollutant readings, never promise universal ventilation hours, and never claim unmeasured indoor air quality.
 
 ---
 
-## 🧠 2. Approach and Logic
+## 🧠 2. Scientific Logic & Mathematical Formulations
 
-### A. Diurnal Thermal Inversion Intelligence & Scientifically Validated Ventilation
-In winter smog episodes, ground cooling creates a steep nocturnal boundary inversion. Particulate concentrations (PM2.5 and PM10) routinely peak between 06:00–10:00 and 19:00–23:00. AeroGuardian models the **solar mixing window (13:30–15:30)** when convective heating temporarily lifts the boundary layer:
-* **AQI $\le 50$ (Good)**: Full natural cross-ventilation safe.
-* **AQI $51 - 100$ (Moderate)**: Natural ventilation safe during afternoon solar convective mixing.
-* **AQI $101 - 150$ (Unhealthy for Sensitive Groups)**: Brief 10m aeration only if indoor CO₂ is elevated; sensitive individuals remain in filtered rooms.
-* **AQI $> 150$ (Unhealthy / Hazardous)**: **Unsafe to ventilate**. Windows strictly locked even during midday; households rely exclusively on continuous indoor air scrubbing.
+### A. Atmospheric Stagnation & Ventilation Viability
+Winter smog episodes feature shallow planetary boundary layers and nocturnal radiation cooling. AeroGuardian evaluates natural ventilation viability strictly against modeled pollutant thresholds rather than arbitrary clock times:
+* **AQI $\le 50$ (Good)**: Natural cross-ventilation is viable.
+* **AQI $51 - 100$ (Moderate)**: Natural ventilation conditionally viable for brief periods (15–20 minutes) to manage indoor $\text{CO}_2$; sensitive occupants should monitor symptoms.
+* **AQI $> 100$ (Unhealthy for Sensitive Groups & Higher)**: **Natural ventilation is not recommended**. Ambient air carries elevated particulate levels; windows should remain sealed while running indoor mechanical filtration.
+* **Data Caveat**: Ambient telemetry originates from regional numerical weather models (Copernicus CAMS at 0.4°/0.75° grid resolution). Vertical thermal soundings are not directly measured; conditions are described as **estimated surface stagnation risk**.
 
-### B. Biological Persona & Vulnerability Modeling
-Different household members face vastly different physiological risks from particulate exposure:
-* **Infants & Children**: Underdeveloped alveoli, narrower airways, and higher minute ventilation per kilogram of body weight (WHO 2021).
-* **Asthma & Bronchitis**: Bronchial hyper-reactivity triggered by PM2.5 and vehicular nitrogen dioxide ($NO_2$).
-* **Elderly**: Systemic vascular inflammation and increased cardiovascular risk.
-* **General & Commuters**: Cumulative occupational exposure.
+### B. Estimated Inhaled PM2.5 Mass Formula
+AeroGuardian models the mass of ambient fine particulate drawn into the respiratory tract:
 
-### C. Mathematical Dose & Emission Calculations
-AeroGuardian uses empirical formulas based on EPA, WHO guidelines, and transportation emission factors:
-* **Inhaled PM2.5 Dose Formula**:
-  $$\text{Dose } (\mu\text{g}) = C_{\text{PM2.5}} \times V_{\text{ventilation}} \times t \times (1 - \eta_{\text{mask}})$$
-  * $V_{\text{ventilation}}$: $0.6\text{ m}^3/\text{hr}$ (rest/light) to $2.1\text{ m}^3/\text{hr}$ (aerobic exertion) based on EPA Child & Adult Exposure Handbooks.
-  * $\eta_{\text{mask}}$: $0.95$ for fitted N95 respirator; $0.0$ for unmasked.
-* **Transportation $CO_2$ Prevention Factor**:
-  * Private Petrol/Diesel Solo: $0.192\text{ kg } CO_2/\text{km}$ (EPA Passenger Car Factor).
-  * Electric Mass Transit (Metro): $0.038\text{ kg } CO_2/\text{km}$.
-  * Carpool / Shared: $0.075\text{ kg } CO_2/\text{km}$.
+$$\text{Estimated Inhaled Mass } (\mu\text{g}) = C_{\text{PM2.5}} \times V_{\text{ventilation}} \times t \times (1 - \eta_{\text{mask}})$$
+
+* **$C_{\text{PM2.5}}$**: Modeled ambient PM2.5 concentration in $\mu\text{g/m}^3$.
+* **$V_{\text{ventilation}}$**: Minute ventilation volume from the **US EPA Exposure Factors Handbook (2011)**:
+  * Resting/light activity: $0.60\text{ m}^3/\text{hr}$ ($\approx 10\text{ L/min}$).
+  * Moderate exertion (aerobic exercise/cycling): $2.10\text{ m}^3/\text{hr}$ ($\approx 35\text{ L/min}$).
+* **$\eta_{\text{mask}}$**: Particulate filtration efficiency. Assumes $0.95$ for a continuously sealed, leak-free N95 respirator. Poorly fitted respirators or cloth masks exhibit substantial perimeter bypass and achieve markedly lower protection.
+* **Scientific Label**: This metric represents **estimated inhaled particulate mass**, not a clinical lung-deposited dose (which depends on particle aerodynamic diameter, hygroscopic growth, and airway deposition mechanics).
+
+### C. Transportation $\text{CO}_2$ Operational Delta
+Commute emission comparisons model operational tailpipe and lifecycle factors:
+
+$$\Delta\text{CO}_2\text{ (kg)} = d_{\text{round-trip}} \times \max\left(0,\, E_{\text{baseline}} - E_{\text{alternative}}\right)$$
+
+* **Emission Factors** (US EPA & UK DEFRA Greenhouse Gas Conversion Factors):
+  * Private Petrol/Diesel Solo Car: $0.192\text{ kg CO}_2/\text{passenger-km}$
+  * Carpool (assumed 2.5 average occupancy): $0.075\text{ kg CO}_2/\text{passenger-km}$
+  * Electrified Mass Transit (Metro/City Bus): $0.038\text{ kg CO}_2/\text{passenger-km}$
+  * Battery Electric Vehicle (EV): $0.045\text{ kg CO}_2/\text{passenger-km}$
+  * Active (Bicycle/Walk): $0.000\text{ kg CO}_2/\text{passenger-km}$
+* **Honest Delta Guarantee**: If a user already commutes via Metro or Walking/Biking, the claimed delta is **0.0 kg $\text{CO}_2$**.
+
+### D. WHO Guideline Benchmarking Context
+* The **WHO Global Air Quality Guidelines (2021)** define target levels as **24-hour averages** ($15\ \mu\text{g/m}^3$ for PM2.5; $45\ \mu\text{g/m}^3$ for PM10) and **annual averages** ($5\ \mu\text{g/m}^3$ for PM2.5).
+* Model-reported hourly values are transient snapshots and are explicitly labeled as hourly predictions rather than full-day integrated averages.
 
 ---
 
-## 🛠️ 3. How the Solution Works (System Architecture)
+## 🛠️ 3. Architecture & Technical Implementation
 
 ```
-┌───────────────────────────────────────────────────────────────┐
-│                    User Interface Layer                       │
-│  React 18 + TypeScript + Tailwind CSS (WCAG 2.1 AA Compliant) │
-│  - Live CAMS Atmospheric Model Card with Inversion Timeline   │
-│  - Family Persona Customizer & Commute Distance Slider        │
-│  - Low-Emission Daily Routine Planner (Before/After)          │
-│  - Interactive IAQ Hacks Guide (Corsi-Rosenthal Box Wizard)   │
-│  - High-Impact Ecological & Personal Savings Tracker          │
-└───────────────────────────────┬───────────────────────────────┘
-                                │
-        ┌───────────────────────┴───────────────────────┐
-        ▼                                               ▼
-┌───────────────────────────────┐       ┌───────────────────────────────┐
-│   Offline Heuristic AI Engine │       │    Google Gemini 3.8 Flash    │
-│  (Instant, Rule-Based, Zero   │  OR   │ (Live Contextual Reasoning    │
-│    Configuration, No Leak)    │       │  via Secure Header Auth)      │
-└───────────────────────────────┘       └───────────────────────────────┘
-                                │
-                                ▼
-┌───────────────────────────────────────────────────────────────┐
-│                    Domain Services & Math                     │
-│  - aqiApi.ts (Open-Meteo & Copernicus CAMS Parallel Client)   │
-│  - impactCalculator.ts (Dose Response, Inhalation Avoided)    │
-│  - security.ts (Header Key Auth, Safe Prompts, Rate Limiter)  │
-│  - cityDefaults.ts (Multi-city winter pollution profiles)     │
-└───────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                     Client UI (React 18 + TS)                   │
+│  - AqiHeroCard (Speciation, Unit-Accurate CAMS Timeline)        │
+│  - ProfileSelector (Runtime-Validated Household Demographics)   │
+│  - RoutinePlanner (Accessible Single-Control Behavioral Engine) │
+│  - ImpactTracker (Transparent Inhaled Mass & CO2 Deltas)        │
+│  - IaqHacksGuide (Safety-Audited DIY Protocols & Cautions)       │
+└────────────────────────────────┬────────────────────────────────┘
+                                 │
+         ┌───────────────────────┴───────────────────────┐
+         ▼                                               ▼
+┌─────────────────────────────────┐     ┌─────────────────────────────────┐
+│   Offline Heuristic AI Engine   │     │    Google Gemini 3.8 Flash      │
+│  - Deterministic Rule Engine    │ OR  │  - Context-Aware Reasoning      │
+│  - Zero Setup / Zero Network    │     │  - Memory-Only Session API Key  │
+│  - Strict Scientific Guardrails │     │  - Header Auth (x-goog-api-key) │
+└─────────────────────────────────┘     └─────────────────────────────────┘
+                                 │
+                                 ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                     Domain Services & Security                  │
+│  - aqiApi.ts: Open-Meteo & Copernicus CAMS Client               │
+│    • Full ISO timestamp alignment (never truncates 14:15)       │
+│    • Coordinate-keyed 15-min in-memory cache & bypass           │
+│    • Request sequence tracking & AbortController timeout        │
+│    • CO µg/m³ to mg/m³ conversion; null-safe zero preservation  │
+│  - impactCalculator.ts: EPA AP-42 & Exposure Factors math       │
+│  - security.ts: Ephemeral in-memory key, sanitizePrompt, limit  │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-### Key Modules:
-1. **Live AQI Hero & Diurnal Timeline (`AqiHeroCard.tsx` & `aqiApi.ts`)**:
-   Connects concurrently to **Open-Meteo & Copernicus Atmosphere Monitoring Service (CAMS)** for real-time model telemetry via `Promise.all()`, with dynamic local-hour slicing and GPS geolocation detection.
-2. **Indoor Air Quality (IAQ) Hacks Guide (`IaqHacksGuide.tsx`)**:
-   Step-by-step DIY instructions for building the **Corsi-Rosenthal box** (4 MERV-13 filters + 20-inch box fan + cardboard shroud), draft sealing, wet microfiber dusting, and kitchen range hood protocols.
-3. **Daily Routine Optimizer (`RoutinePlanner.tsx`)**:
-   Compares conventional habits against clean air alternatives with real-time reactive recalculation upon live AQI updates.
-4. **Impact Tracker (`ImpactTracker.tsx`)**:
-   Displays community rank percentile (model estimate), tree-absorption equivalents, clean air hours gained, and total $PM_{2.5}$ saved.
-5. **Dual-Mode GenAI Assistant (`AiAssistantChat.tsx` & `geminiService.ts`)**:
-   * **Mode 1 (Default)**: Offline Heuristic Reasoning Engine with immediate responses and contextual suggested exploration pills.
-   * **Mode 2 (Live Gemini 3.8 Flash)**: Configurable Google Gemini 3.8 Flash integration with multi-turn conversation memory, transmitted securely via HTTP headers (`x-goog-api-key`) with client-side rate limiting.
+### Key Security & Integrity Attributes:
+1. **Memory-Only API Key Handling**: The Google Gemini API key resides solely in volatile JavaScript memory for the active tab session. It is **never written to browser `localStorage`**, eliminating persistent XSS credential exposure.
+2. **Client-Side Throttling Disclaimer**: The client-side sliding window limiter (15 requests/minute) provides UI throttling against double-submits. Authoritative throttling requires a backend proxy.
+3. **Restricted Content Security Policy (CSP)**: Hardened with `object-src 'none'`, `base-uri 'self'`, `form-action 'self'`, and `frame-ancestors 'none'` delivered via HTTP response headers.
+4. **No Fabricated Telemetry**: Custom user cities with manual AQI inputs show other chemical species and hourly forecast curves as `Unavailable` (`null`), preventing fabricated readings.
 
 ---
 
-## 📐 4. Assumptions Made & Scientific Citations
+## 🧪 4. Automated Testing & Verification Suite
 
-1. **Ambient Air Quality Data**: Model forecasts fetched via Open-Meteo European CAMS API. Presets represent verified winter smog peaks in respective basins.
-2. **Adult & Child Breathing Volumes**: Average minute ventilation assumed at $10\text{–}12\text{ L/min}$ ($0.6\text{ m}^3/\text{hr}$) for adults at rest, $35\text{ L/min}$ ($2.1\text{ m}^3/\text{hr}$) under aerobic exercise, with children adjusted per EPA Child-Specific Exposure Factors.
-3. **Corsi-Rosenthal Box Performance**: Assumes 4 MERV-13 filters delivering approximately $450\text{–}550\text{ CFM}$ clean air delivery rate (CADR) in a standard $300\text{–}500\text{ sq ft}$ room (UC Davis Department of Civil & Environmental Engineering).
-4. **Mask Filtration**: Assumes a properly sealed N95 / KF94 respirator achieving $\ge 95\%$ particle filtration.
-5. **Scientific References**:
-   - World Health Organization: *WHO Global Air Quality Guidelines* (2021). Guideline level: $15\ \mu\text{g/m}^3$ (24-hr) and $5\ \mu\text{g/m}^3$ (annual).
-   - United States Environmental Protection Agency: *AP-42 Compilation of Air Pollutant Emission Factors*.
-   - European Centre for Medium-Range Weather Forecasts (ECMWF): *Copernicus Atmosphere Monitoring Service (CAMS)*.
+AeroGuardian includes **42 automated unit and accessibility tests** run via `vitest` in a JSDOM environment:
 
----
+| Test Suite | Tests | Scope & Assertions |
+| :--- | :---: | :--- |
+| `aqiApi.test.ts` | 11 | Full ISO timestamp matching, zero-preservation, coordinate-caching, timeout cancellation, CO unit conversion, weather fallback. |
+| `impactCalculator.test.ts` | 7 | Minute ventilation exertion scaling, N95 penetration math, commute deltas, zero delta for green modes, no artificial multipliers. |
+| `geminiService.test.ts` | 7 | Header authentication, generationConfig compliance (no unsupported parameters), 400/403/429/5xx error fallbacks, heuristic engine safety. |
+| `security.test.ts` | 7 | Memory-only key lifecycle, prompt sanitization (no HTML entity mangling in LLM prompts), key masking, rate limiter. |
+| `cityData.test.ts` | 5 | Preset labeling as offline presets, custom city null-safety (no fake PM2.5/forecasts), runtime household profile validation. |
+| `accessibility.test.tsx` | 5 | axe-core automated audit (0 critical/serious violations), single-control routine buttons, modal focus trap & escape dismissal. |
 
-## 🏆 5. Evaluation Criteria Alignment
-
-### 🟢 High Impact: Code Quality & Problem Alignment
-* **Strict TypeScript**: 100% type safety, zero `any` shortcuts, fully typed domain models.
-* **Component Architecture**: Decoupled, reusable components with clear separation of concerns.
-* **Problem Relevance**: Directly targets winter smog, thermal inversions, vulnerable populations, low-cost DIY filters, and low-emission routines.
-
-### 🔵 Medium Impact: Security & Resource Efficiency
-* **Client-Side Isolated Storage & CSP**: API keys can be stored either as **ephemeral in-memory keys** (cleared on tab close) or persistently in browser `localStorage`. Keys are transmitted strictly via HTTPS `x-goog-api-key` header (never exposed in URL query parameters). Hardened with an active Content Security Policy (CSP).
-* **Enterprise Roadmap**: For enterprise production deployments, a Node.js/Go backend proxy route with server-side Redis token-bucket rate limiting is recommended.
-* **Rate Limiting**: Integrated `chatRateLimiter` enforces a 15 req/min window.
-* **In-Memory Caching & Concurrency**: 15-minute in-memory caching in `aqiApi.ts` prevents duplicate network queries when switching views. Parallel `Promise.all` telemetry fetching with `AbortController` timeout prevents hung network requests.
-* **Advanced Code Splitting & Dynamic Lazy Loading**:
-  - Main Application Entry: **58.63 kB** (17.36 kB gzipped) — 76% reduction in initial payload.
-  - Dedicated Vendor Chunks: `vendor-react` (133 kB) and `vendor-icons` (22 kB) for long-term browser cacheability.
-  - Route-Level Dynamic Lazy Chunks (`React.lazy()` + `<Suspense>`): `RoutinePlanner` (3.7 kB), `IaqHacksGuide` (11.4 kB), `AiAssistantChat` (16.8 kB).
-* **Ultra-Lean Footprint**:
-  - Total Git Repository Size: **< 1.0 MB** (strictly satisfying the `< 10 MB` challenge rule).
-  - Single branch: **`main`**.
-
-### ⚪ Low Impact: Testing & Accessibility
-* **Testing Suite**: **31 automated unit tests** powered by `vitest` covering mathematical dosage calculations, live Open-Meteo local timezone slicing, XSS sanitization, rate limiting, in-memory caching, commute delta analysis, and Gemini header authentication.
-* **Accessibility (WCAG 2.1 AA Foundations)**:
-  * High-Contrast Mode toggle for visually impaired users.
-  * Semantic HTML5 elements (`<header>`, `<main>`, `<section>`, `<nav>`, `<footer>`, `<noscript>`).
-  * Full ARIA labeling (`aria-expanded`, `aria-pressed`, `aria-label`, `aria-live="polite"`, `role="region"`, `role="dialog"`, `role="status"`).
-  * Reduced-motion support via `@media (prefers-reduced-motion: reduce)` in CSS.
-  * Modal focus trap (cycling Tab / Shift+Tab) with Escape key listeners and focus return.
+**Total Test Coverage**: 42 passed (100% pass rate).
 
 ---
 
-## 🚀 6. Getting Started Locally
+## 🚀 5. Getting Started Locally
 
 ### Prerequisites
-* **Node.js**: v18+ (tested on v22.23.1)
-* **npm**: v9+ (tested on v10.9.8)
+* **Node.js**: v18+ (tested on v20 and v22)
+* **npm**: v9+ (tested on v10)
 
 ### Installation & Run
 
@@ -156,29 +138,70 @@ AeroGuardian uses empirical formulas based on EPA, WHO guidelines, and transport
 git clone https://github.com/Xsayushn/hack2skillchalange6.git
 cd hack2skillchalange6
 
-# 2. Install dependencies
-npm install
+# 2. Clean install of locked dependencies
+npm ci
 
-# 3. Run development server
-npm run dev
+# 3. Run ESLint code quality inspection
+npm run lint
 
-# 4. Run test suite (31 tests)
+# 4. Run Prettier format check
+npm run format:check
+
+# 5. Run full automated unit & accessibility test suite (42 tests)
 npm test
 
-# 5. Build production bundle
+# 6. Verify production TypeScript build
 npm run build
+
+# 7. Start preview server
+npm run preview
 ```
 
 ---
 
-## 📜 7. Repository Compliance Checklist
+## ☁️ 6. Render Deployment Configuration
 
-- [x] **Repository is Public**: Accessible on GitHub.
-- [x] **Size Limit**: Entire source code is **under 1 MB** (well below the 10 MB limit).
-- [x] **Single Branch**: All commits are on the **`main`** branch only.
-- [x] **Chosen Vertical**: Clearly identified as Challenge 6 (Urban Air Quality Assistant).
-- [x] **Clean `.gitignore`**: Excludes `node_modules`, build outputs (`dist/`), environment variables, raw recordings, and screenshots.
+AeroGuardian is configured for deployment on **Render Static Sites** via `render.yaml`:
+
+```yaml
+services:
+  - type: web
+    name: aeroguardian
+    runtime: static
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - path: /*
+        name: Permissions-Policy
+        value: geolocation=(self), camera=(), microphone=()
+      - path: /*
+        name: Content-Security-Policy
+        value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://generativelanguage.googleapis.com https://air-quality-api.open-meteo.com https://api.open-meteo.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';"
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+```
 
 ---
 
-*Developed for PromptWars Virtual — Hack2Skill 2026.*
+## 📚 7. Scientific References & Provider Attributions
+
+1. **Atmospheric Forecast Data**: European Centre for Medium-Range Weather Forecasts (ECMWF) via the **Copernicus Atmosphere Monitoring Service (CAMS)** and **Open-Meteo Air Quality API**.
+2. **Health Benchmarks**: World Health Organization: *WHO Global Air Quality Guidelines: Particulate matter (PM2.5 and PM10), ozone, nitrogen dioxide, sulfur dioxide and carbon monoxide* (2021).
+3. **Physiological Ventilation**: United States Environmental Protection Agency: *Exposure Factors Handbook: 2011 Edition* (EPA/600/R-09/052F).
+4. **Mobile Source Emissions**: US EPA: *AP-42 Compilation of Air Pollutant Emission Factors* & UK Department for Environment, Food & Rural Affairs (DEFRA) *Greenhouse Gas Conversion Factors*.
+5. **Air Filtration Engineering**: UC Davis Department of Civil & Environmental Engineering & Corsi-Rosenthal Open-Source Air Cleaner Design.
+
+---
+
+*AeroGuardian — Developed for PromptWars Virtual — Hack2Skill 2026.*

@@ -7,7 +7,8 @@ on:
     branches: [ main ]
 
 jobs:
-  build-and-test:
+  verify:
+    name: Lint, Test, A11y & Build
     runs-on: ubuntu-latest
 
     steps:
@@ -20,11 +21,20 @@ jobs:
         node-version: 20
         cache: 'npm'
 
-    - name: Install dependencies
+    - name: 1. Install dependencies
       run: npm ci
 
-    - name: Run unit test suite
+    - name: 2. Run ESLint code quality check
+      run: npm run lint
+
+    - name: 3. Run Prettier formatting check
+      run: npm run format:check
+
+    - name: 4. Run Vitest automated unit test suite
       run: npm test
 
-    - name: Run production TypeScript build
+    - name: 5. Run axe-core accessibility checks
+      run: npm run test:a11y
+
+    - name: 6. Run strict TypeScript verification & production build
       run: npm run build

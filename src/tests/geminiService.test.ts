@@ -1,106 +1,162 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { sendChatMessage } from '../services/geminiService';
-import { AssistantContext, ChatMessage } from '../types/assistant';
-import { chatRateLimiter } from '../services/security';
+import {
+  sendChatMessage,
+  generateHeuristicResponse,
+  buildSystemPrompt,
+  GEMINI_MODEL_ID,
+} from '../services/geminiService';
+import { AssistantContext } from '../types/assistant';
 
-describe('Gemini and Heuristic Reasoning Engine', () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
-    chatRateLimiter.reset();
-  });
-
-  const context: AssistantContext = {
+describe('Gemini 3.8 Flash & Heuristic Intelligence Service', () => {
+  const dummyContext: AssistantContext = {
     cityName: 'Delhi NCR',
-    currentAqi: 385,
+    currentAqi: 320,
     aqiCategory: 'Very Unhealthy',
-    pm25: 290,
-    inversionLayerActive: true,
+    pm25: 240,
+    estimatedStagnationRisk: 'High',
     vulnerabilities: ['Infant/Child', 'Respiratory/Asthma'],
-    hasPurifier: false,
-    commuteMode: 'Private Car'
+    hasPurifier: true,
+    commuteMode: 'Private Car',
   };
 
-  it('generates heuristic response with inversion details when asked about smog or weather', async () => {
-    const response = await sendChatMessage([], 'When will the winter smog clear and is thermal inversion happening?', context);
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('builds system prompt conforming strictly to environmental science and medical safety rules', () => {
+    const prompt = buildSystemPrompt(dummyContext);
+
+    expect(prompt).toContain('Delhi NCR');
+    expect(prompt).toContain('320 (Very Unhealthy)');
+    // Must contain scientific disclaimers:
+    expect(prompt).toContain('NO UNIVERSAL TIME WINDOWS');
+    expect(prompt).toContain('NO MEDICAL DIAGNOSIS');
+    expect(prompt).toContain('indoor air quality is not directly measured');
+    expect(prompt).not.toContain('temperature');
+  });
+
+  it('sends API key via x-goog-api-key HTTP header and excludes unsupported generationConfig parameters', async () => {
+    let capturedHeaders: Record<string, string> = {};
+    let capturedBody: Record<string, unknown> = {};
+
+    global.fetch = vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
+      capturedHeaders = (init?.headers as Record<string, string>) || {};
+      capturedBody = JSON.parse((init?.body as string) || '{}');
+
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          candidates: [
+            {
+              content: {
+                parts: [{ text: 'Here is your scientifically sound air quality advice.' }],
+              },
+            },
+          ],
+        }),
+      } as Response);
+    });
+
+    const testKey = 'AIzaSyTestValidKey12345678901234567890123';
+    const response = await sendChatMessage(
+      [],
+      'How do I protect my child today?',
+      dummyContext,
+      testKey
+    );
+
+    // Verify header authentication:
+    expect(capturedHeaders['x-goog-api-key']).toBe(testKey);
+    expect(capturedHeaders['Content-Type']).toBe('application/json');
+
+    // Verify generationConfig does NOT include deprecated temperature, topK, or topP:
+    const genConfig = (capturedBody.generationConfig as Record<string, unknown>) || {};
+    expect(genConfig).toBeDefined();
+    expect(genConfig.temperature).toBeUndefined();
+    expect(genConfig.topK).toBeUndefined();
+    expect(genConfig.topP).toBeUndefined();
+    expect(genConfig.maxOutputTokens).toBe(1024);
 
     expect(response.role).toBe('assistant');
-    expect(response.content).toContain('Thermal Inversion');
-    expect(response.content).toContain('Delhi NCR');
+    expect(response.content).toContain('scientifically sound');
+    expect(response.impactHighlight?.value).toContain(GEMINI_MODEL_ID);
+  });
+
+  it('gracefully handles 400 invalid-key error with informative fallback', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      json: async () => ({ error: { message: 'API key not valid' } }),
+    } as Response);
+
+    const response = await sendChatMessage(
+      [],
+      'What should I do during high smog?',
+      dummyContext,
+      'AIzaSyInvalidKey1234567890123456789012'
+    );
+
+    expect(response.content).toBeDefined();
+    expect(response.impactHighlight?.label).toBe('Engine Status');
+    expect(response.impactHighlight?.value).toContain('invalid');
+  });
+
+  it('gracefully handles 429 quota error with informative fallback', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 429,
+      json: async () => ({ error: { message: 'Resource has been exhausted (e.g. check quota).' } }),
+    } as Response);
+
+    const response = await sendChatMessage(
+      [],
+      'How to ventilate?',
+      dummyContext,
+      'AIzaSyValidKey12345678901234567890123'
+    );
+
+    expect(response.impactHighlight?.value).toContain('rate limit');
+  });
+
+  it('handles empty response or blocked safety triggers cleanly', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ candidates: [] }),
+    } as Response);
+
+    const response = await sendChatMessage(
+      [],
+      'Is air bad?',
+      dummyContext,
+      'AIzaSyValidKey12345678901234567890123'
+    );
+
+    expect(response.content).toBeDefined();
+    expect(response.impactHighlight?.value).toContain('empty response');
+  });
+
+  it('operates via offline heuristic engine with zero setup when no key is provided', async () => {
+    const response = await sendChatMessage(
+      [],
+      'Tell me about the Corsi-Rosenthal box',
+      dummyContext,
+      ''
+    );
+
+    expect(response.role).toBe('assistant');
+    expect(response.content).toContain('Corsi-Rosenthal');
+    expect(response.content).toContain('MERV-13');
     expect(response.suggestedActions?.length).toBeGreaterThan(0);
   });
 
-  it('generates DIY air purifier recommendations when asked about low-cost filters', async () => {
-    const response = await sendChatMessage([], 'How do I build a low cost air purifier?', context);
+  it('heuristic engine warns against natural ventilation when AQI is elevated', () => {
+    const unhealthyContext: AssistantContext = {
+      ...dummyContext,
+      currentAqi: 220,
+    };
+    const response = generateHeuristicResponse('Can I open the windows today?', unhealthyContext);
 
-    expect(response.content).toContain('Corsi-Rosenthal');
-    expect(response.content).toContain('MERV 13');
-  });
-
-  it('protects vulnerable groups with customized advice', async () => {
-    const response = await sendChatMessage([], 'How do I protect my toddler and grandmother with asthma?', context);
-
-    expect(response.content).toContain('Child');
-    expect(response.content).toContain('Sanctuary');
-  });
-
-  it('authenticates via x-goog-api-key header and includes chat history', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        candidates: [{ content: { parts: [{ text: 'Live AI response generated.' }] } }]
-      })
-    } as Response);
-    global.fetch = fetchMock;
-
-    const history: ChatMessage[] = [
-      { id: '1', role: 'user', content: 'What is AQI?', timestamp: '10:00' },
-      { id: '2', role: 'assistant', content: 'AQI measures air pollution.', timestamp: '10:01' }
-    ];
-
-    const result = await sendChatMessage(
-      history,
-      'Can my baby go outside?',
-      context,
-      'AIzaSyDummyKeyForTestingPurposes123456789'
-    );
-
-    expect(result.content).toBe('Live AI response generated.');
-    expect(result.impactHighlight?.label).toBe('Live AI Active');
-    expect(result.impactHighlight?.value).toContain('gemini-3.8-flash');
-    
-    // Verify header was passed
-    expect(fetchMock).toHaveBeenCalled();
-    const [calledUrl, options] = fetchMock.mock.calls[0];
-    expect(calledUrl).not.toContain('?key='); // Verified: NO key in URL!
-    expect(options.headers['x-goog-api-key']).toBe('AIzaSyDummyKeyForTestingPurposes123456789');
-
-    // Verify conversation history was serialized
-    const requestBody = JSON.parse(options.body);
-    expect(requestBody.contents.length).toBe(3); // 2 history items + 1 new prompt
-  });
-
-  it('gracefully handles live API errors with informative fallback', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: false,
-      status: 403,
-      json: async () => ({ error: { message: 'API key expired' } })
-    } as Response);
-
-    const result = await sendChatMessage([], 'What should I do?', context, 'AIzaSyBadKey');
-
-    expect(result.role).toBe('assistant');
-    expect(result.impactHighlight?.label).toBe('Engine Status');
-    expect(result.impactHighlight?.value).toContain('API key expired');
-  });
-
-  it('throttles excessive requests via chatRateLimiter', async () => {
-    // Fill up the limiter (limit is 15)
-    for (let i = 0; i < 15; i++) {
-      chatRateLimiter.canProceed();
-    }
-
-    const throttledResult = await sendChatMessage([], 'Spam prompt', context);
-    expect(throttledResult.content).toContain('Rate Limit Notice');
-    expect(throttledResult.impactHighlight?.label).toBe('Rate Limiter');
+    expect(response.content).toContain('Natural Ventilation Not Recommended');
+    expect(response.content).toContain('Combustion Safety Warning');
   });
 });

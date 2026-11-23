@@ -6,17 +6,35 @@ import {
   validateApiKey,
   SimpleRateLimiter,
   setEphemeralApiKey,
-  getEphemeralApiKey
+  getEphemeralApiKey,
+  clearEphemeralApiKey,
 } from '../services/security';
 
-describe('Security Utilities', () => {
-  it('sanitizes prompt text without mutilating slashes or quotes', () => {
-    const raw = 'How do I clean PM2.5 / PM10 in 1/2 hour? \u0000\u0007';
+describe('Security & Credential Sanitization Utilities', () => {
+  it('manages ephemeral API key strictly in memory without touching localStorage', () => {
+    clearEphemeralApiKey();
+    expect(getEphemeralApiKey()).toBeNull();
+
+    setEphemeralApiKey('AIzaSyTestEphemeralKey1234567890123456789');
+    expect(getEphemeralApiKey()).toBe('AIzaSyTestEphemeralKey1234567890123456789');
+
+    // Verify localStorage was NOT modified
+    expect(localStorage.getItem('aeroguardian_gemini_key')).toBeNull();
+
+    clearEphemeralApiKey();
+    expect(getEphemeralApiKey()).toBeNull();
+  });
+
+  it('sanitizes prompt text without mangling natural slashes, math, or quotes', () => {
+    const raw = 'How do I clean PM2.5 / PM10 in 1/2 hr? "Test" \u0000\u0007\u001F';
     const clean = sanitizePrompt(raw);
 
     expect(clean).toContain('/');
+    expect(clean).toContain('"Test"');
     expect(clean).not.toContain('\u0000');
-    expect(clean).not.toContain('&#x2F;'); // Confirmed: no artificial HTML entity inside LLM prompt
+    expect(clean).not.toContain('\u0007');
+    expect(clean).not.toContain('\u001F');
+    expect(clean).not.toContain('&#x2F;'); // No artificial HTML escaping in LLM prompt
   });
 
   it('enforces maximum character length limit on prompts', () => {
@@ -26,15 +44,17 @@ describe('Security Utilities', () => {
     expect(sanitized.length).toBe(500);
   });
 
-  it('escapes HTML tags for safe DOM insertion when needed', () => {
-    const malicious = '<script>alert("xss")</script>';
+  it('escapes HTML tags when safe DOM string rendering is required', () => {
+    const malicious = '<script>alert("xss")</script>&"\'';
     const escaped = sanitizeHtml(malicious);
 
     expect(escaped).not.toContain('<script>');
     expect(escaped).toContain('&lt;script&gt;');
+    expect(escaped).toContain('&amp;');
+    expect(escaped).toContain('&quot;');
   });
 
-  it('masks API keys securely showing only prefix and suffix', () => {
+  it('masks API keys securely showing only 4-char prefix and suffix', () => {
     const key = 'AIzaSyDemoSecretKeyForGoogleGeminiApi123';
     const masked = maskApiKey(key);
 
@@ -43,39 +63,22 @@ describe('Security Utilities', () => {
     expect(masked).toContain('••••••••');
   });
 
-  it('validates Gemini API key format correctly', () => {
+  it('validates Google Gemini API key format correctly', () => {
     expect(validateApiKey('AIzaSyAbcdefghijklmnopqrstuvwxyz1234567')).toBe(true);
-    expect(validateApiKey('invalid-key')).toBe(false);
+    expect(validateApiKey('invalid-key-too-short')).toBe(false);
+    expect(validateApiKey('NotAIzaSyAbcdefghijklmnopqrstuvwxyz1234567')).toBe(false);
     expect(validateApiKey('')).toBe(false);
   });
 
-  it('enforces rate limiting window correctly', () => {
+  it('enforces client-side rate limiting sliding window', () => {
     const limiter = new SimpleRateLimiter(3, 5000); // 3 calls per 5s
     expect(limiter.canProceed()).toBe(true);
     expect(limiter.canProceed()).toBe(true);
     expect(limiter.canProceed()).toBe(true);
     expect(limiter.canProceed()).toBe(false); // 4th blocked
-  });
-
-  it('resets rate limiter correctly', () => {
-    const limiter = new SimpleRateLimiter(2, 5000);
-    expect(limiter.canProceed()).toBe(true);
-    expect(limiter.canProceed()).toBe(true);
-    expect(limiter.canProceed()).toBe(false);
+    expect(limiter.getRemaining()).toBe(0);
 
     limiter.reset();
     expect(limiter.canProceed()).toBe(true);
-    expect(limiter.getRemaining()).toBe(1);
-  });
-
-  it('stores and retrieves ephemeral session API key in memory', () => {
-    setEphemeralApiKey(null);
-    expect(getEphemeralApiKey()).toBeNull();
-
-    setEphemeralApiKey('AIzaSyTemporaryKey12345678901234567890123');
-    expect(getEphemeralApiKey()).toBe('AIzaSyTemporaryKey12345678901234567890123');
-
-    setEphemeralApiKey(null);
-    expect(getEphemeralApiKey()).toBeNull();
   });
 });

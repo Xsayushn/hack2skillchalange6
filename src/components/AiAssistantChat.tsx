@@ -8,10 +8,7 @@ interface AiAssistantChatProps {
   apiKey: string;
 }
 
-export const AiAssistantChat: React.FC<AiAssistantChatProps> = ({
-  context,
-  apiKey
-}) => {
+export const AiAssistantChat: React.FC<AiAssistantChatProps> = ({ context, apiKey }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'init-1',
@@ -30,9 +27,9 @@ Ask me anything about:
         'When is it safe to ventilate today?',
         'How to build a DIY air purifier?',
         'How to protect our children and elderly?',
-        'What commute saves the most emissions?'
-      ]
-    }
+        'What commute saves the most emissions?',
+      ],
+    },
   ]);
 
   const [inputVal, setInputVal] = useState('');
@@ -55,7 +52,7 @@ Ask me anything about:
       id: `user-${Date.now()}`,
       role: 'user',
       content: text.trim(),
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
     setMessages((prev) => [...prev, userMsg]);
@@ -97,7 +94,7 @@ Ask me anything about:
       </div>
 
       {/* Messages Scroll Area */}
-      <div 
+      <div
         className="flex-1 overflow-y-auto py-4 space-y-4 pr-1"
         aria-live="polite"
         aria-atomic="false"
@@ -129,7 +126,9 @@ Ask me anything about:
               {msg.impactHighlight && (
                 <div className="mt-3 p-2.5 rounded-xl bg-emerald-100/70 border border-emerald-300 text-emerald-950 text-xs flex items-center gap-2">
                   <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span><strong>{msg.impactHighlight.label}:</strong> {msg.impactHighlight.value}</span>
+                  <span>
+                    <strong>{msg.impactHighlight.label}:</strong> {msg.impactHighlight.value}
+                  </span>
                 </div>
               )}
 
@@ -155,9 +154,7 @@ Ask me anything about:
                 </div>
               )}
 
-              <div className="text-[10px] text-slate-400 mt-2 text-right">
-                {msg.timestamp}
-              </div>
+              <div className="text-[10px] text-slate-400 mt-2 text-right">{msg.timestamp}</div>
             </div>
           </div>
         ))}

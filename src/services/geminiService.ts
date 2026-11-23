@@ -6,299 +6,384 @@ export const GEMINI_MODEL_ID = 'gemini-3.8-flash';
 const GEMINI_API_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL_ID}:generateContent`;
 
 /**
- * Builds a prompt with environmental science context, family vulnerability profile, and winter smog conditions.
+ * Builds a system instruction adhering strictly to environmental health science principles:
+ * - Does NOT claim detected thermal inversions without vertical atmospheric soundings.
+ * - Does NOT claim universal ventilation timing.
+ * - Does NOT make clinical diagnoses or medication recommendations.
+ * - Clarifies that ambient forecasts do not measure indoor air quality.
  */
 export function buildSystemPrompt(context: AssistantContext): string {
-  return `You are AeroGuardian, an empathetic environmental health scientist and urban air quality AI assistant.
-Your goal is to guide families, schools, and communities living under severe winter smog, thermal inversions, and high particulate pollution.
+  const aqiDisplay =
+    context.currentAqi !== null
+      ? `${context.currentAqi} (${context.aqiCategory})`
+      : 'Data Unavailable';
+  const pm25Display = context.pm25 !== null ? `${context.pm25} µg/m³` : 'Data Unavailable';
 
-CURRENT USER CONTEXT:
+  return `You are AeroGuardian, an environmental health science and urban air quality advisory assistant.
+Your goal is to guide families, schools, and communities living under elevated winter smog and particulate pollution.
+
+CURRENT CONTEXT (Numerical Model Telemetry):
 - Location: ${context.cityName}
-- Air Quality Index (AQI): ${context.currentAqi} (${context.aqiCategory})
-- Fine Particulate (PM2.5): ${context.pm25} µg/m³
-- Thermal Inversion Layer: ${context.inversionLayerActive ? 'ACTIVE (Pollutants trapped near ground level)' : 'Inactive / Normal Dispersion'}
-- Family Vulnerabilities: ${context.vulnerabilities.length > 0 ? context.vulnerabilities.join(', ') : 'General population'}
+- Modeled Ambient AQI: ${aqiDisplay}
+- Modeled Fine Particulate (PM2.5): ${pm25Display}
+- Estimated Surface Stagnation Risk: ${context.estimatedStagnationRisk}
+- Reported Vulnerabilities: ${context.vulnerabilities.length > 0 ? context.vulnerabilities.join(', ') : 'General population'}
 - Commute Mode: ${context.commuteMode}
-- Has Indoor Air Purifier: ${context.hasPurifier ? 'Yes' : 'No (Needs DIY/Low-cost advice)'}
+- Has Indoor Air Purifier: ${context.hasPurifier ? 'Yes' : 'No (Requires DIY/Low-cost advice)'}
 
-GUIDELINES:
-1. Provide actionable, practical, empathetic advice focused on low-emission daily routines and indoor air quality hacks.
-2. Emphasize diurnal inversion patterns: explain why morning (6-10 AM) and evening (7-11 PM) are highest risk, and why the afternoon (1-3:30 PM) is the best window for any necessary ventilation.
-3. If family has infants, pregnant women, elderly, or asthma patients, prioritize lung barrier protection (N95 mask fit, avoiding deep breathing, bedroom isolation).
-4. Suggest low-cost hacks like DIY Corsi-Rosenthal boxes, wet wiping vs dry sweeping, draft sealing, and range hood venting.
-5. Quantify the impact: explicitly mention how much exposure is avoided or emissions saved based on WHO and EPA benchmarks.
-6. Keep answers structured, encouraging, concise, and easy to read with bullet points.`;
+SCIENTIFIC & SAFETY CONSTRAINTS:
+1. SCIENTIFIC HONESTY: Ambient forecasts come from atmospheric numerical models (such as CAMS), not physical indoor sensors. Clearly state that indoor air quality is not directly measured.
+2. NO UNIVERSAL TIME WINDOWS: Do not tell users that 1:30 PM–3:30 PM is universally safe. Natural ventilation depends entirely on actual outdoor pollutant concentrations; when ambient AQI > 100, natural ventilation is generally not recommended.
+3. NO INVERSION CERTAINTY: Refer to atmospheric conditions as "estimated surface-layer stagnation risk". Do not claim a confirmed thermal inversion unless vertical sounding measurements are referenced.
+4. BARRIER PROTECTION: For sensitive individuals (infants, elderly, asthma sufferers), recommend well-fitted N95 respirators, mechanical filtration (HEPA or sealed DIY MERV-13 units), and minimizing strenuous outdoor aerobic exertion.
+5. NO MEDICAL DIAGNOSIS: Never prescribe medications, dosages, or clinical treatments. Advise users with severe symptoms to consult healthcare professionals.
+6. PRACTICAL LOW-COST HACKS: Suggest evidence-based methods such as Corsi-Rosenthal boxes (with fan electrical safety precautions), wet dusting vs dry sweeping, and isolating kitchen range exhaust.`;
 }
 
 /**
  * Heuristic fallback AI engine.
- * Generates dynamic, context-aware responses when no external API key is provided, when rate-limited, or when offline.
+ * Generates context-aware, scientifically defensible responses when no API key is provided,
+ * when offline, or when rate-limited.
  */
-export function generateHeuristicResponse(userPrompt: string, context: AssistantContext, customNotice?: string): ChatMessage {
+export function generateHeuristicResponse(
+  userPrompt: string,
+  context: AssistantContext,
+  customNotice?: string
+): ChatMessage {
   const query = userPrompt.toLowerCase();
-  const id = `msg-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+  const id = `msg-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
   const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-  // 1. Inversion layer / Smog forecast query
-  if (query.includes('inversion') || query.includes('smog') || query.includes('weather') || query.includes('fog') || query.includes('window') || query.includes('ventilate')) {
+  const aqiDisplay =
+    context.currentAqi !== null
+      ? `AQI ${context.currentAqi} (${context.aqiCategory})`
+      : 'current ambient conditions';
+  const pm25Display = context.pm25 !== null ? `${context.pm25} µg/m³` : 'ambient';
+
+  // 1. Inversion / Stagnation / Ventilation queries
+  if (
+    query.includes('inversion') ||
+    query.includes('stagnation') ||
+    query.includes('smog') ||
+    query.includes('ventilate') ||
+    query.includes('window')
+  ) {
+    const isUnhealthy = context.currentAqi !== null && context.currentAqi > 100;
+
     return {
       id,
       role: 'assistant',
       timestamp,
-      content: `### 🌫️ Winter Inversion & Smog Dynamics in ${context.cityName}
+      content: `### 🌫️ Atmospheric Stagnation & Ventilation Advisory for ${context.cityName}
 
-Currently, your location has an **AQI of ${context.currentAqi} (${context.aqiCategory})** with PM2.5 levels at **${context.pm25} µg/m³**.
+Currently, numerical models estimate **${aqiDisplay}** with fine particulate (PM2.5) around **${pm25Display}**.
 
-**Thermal Inversion Impact:**
-Cold winter air is currently denser than the warmer atmospheric layer above, effectively acting like a lid that traps vehicular exhaust, road dust, and smoke right at breathing height.
+**Boundary Layer & Stagnation:**
+During winter periods, cold ground temperatures often create a shallow surface boundary layer that restricts vertical pollutant dispersion, causing vehicle exhaust and combustion soot to accumulate near ground level.
 
-**Recommended Action Protocol:**
-* **Strict Lockdown Window:** Keep all windows sealed between **6:00 PM and 11:00 AM**, when the inversion layer is lowest and thickest.
-* **Optimal Diurnal Ventilation Window:** If indoor CO2 is high, the best window for a brief 10-15 minute cross-ventilation burst is **1:30 PM to 3:30 PM**, when solar radiation lifts the boundary layer by 30-40%.
-* **Draft Proofing:** Apply foam weatherstripping or rolled towels at the base of exterior doors to prevent smoke infiltration.`,
+**Ventilation Protocol:**
+${
+  isUnhealthy
+    ? '* **Natural Ventilation Not Recommended:** Because ambient AQI exceeds 100, opening windows will introduce outdoor soot indoors. Keep windows closed and operate indoor mechanical filtration.'
+    : '* **Conditional Aeration:** If outdoor AQI is moderate or low, a brief cross-ventilation window (15–20 minutes) may help lower indoor CO2. Monitor local air quality before airing.'
+}
+* **Combustion Safety Warning:** Never seal essential combustion-air flues, water heater vents, or gas appliance exhausts, as doing so poses severe carbon monoxide poisoning risks.`,
       suggestedActions: [
-        'How to build a DIY Corsi-Rosenthal box?',
-        'What commute alternatives save the most emissions?',
-        'How to protect asthma & elderly family members?'
+        'How does a DIY Corsi-Rosenthal box work?',
+        'How to protect vulnerable family members?',
+        'What commute options reduce exposure?',
       ],
       impactHighlight: {
-        label: customNotice ? 'Engine Status' : 'Exposure Reduction',
-        value: customNotice || 'Reduces indoor PM2.5 infiltration by up to 60%',
-        type: customNotice ? 'warning' : 'positive'
-      }
+        label: customNotice ? 'Engine Status' : 'Ventilation Guidance',
+        value:
+          customNotice ||
+          (isUnhealthy
+            ? 'Windows closed; rely on indoor air cleaning'
+            : 'Brief aeration viable when ambient air is clean'),
+        type: customNotice ? 'warning' : isUnhealthy ? 'warning' : 'positive',
+      },
     };
   }
 
-  // 2. DIY Filter / Purifier / IAQ hacks
-  if (query.includes('filter') || query.includes('purifier') || query.includes('hepa') || query.includes('hack') || query.includes('corsi') || query.includes('diy') || query.includes('cost')) {
+  // 2. DIY Filter / Purifier / IAQ Hacks
+  if (
+    query.includes('filter') ||
+    query.includes('purifier') ||
+    query.includes('hepa') ||
+    query.includes('corsi') ||
+    query.includes('diy') ||
+    query.includes('hack')
+  ) {
     return {
       id,
       role: 'assistant',
       timestamp,
-      content: `### 🛠️ Low-Cost Indoor Air Quality Hacks
+      content: `### 🛠️ DIY Air Filtration (Corsi-Rosenthal Box)
 
-You don't need a $400 commercial HEPA unit to achieve clean indoor air. Here is the scientifically validated **Corsi-Rosenthal Box** technique:
+A Corsi-Rosenthal box is an open-source, low-cost particulate scrubber constructed from furnace filters and a box fan:
 
-1. **The 4-Filter Cube:** Tape 4 standard MERV 13 furnace filters into a square cube (arrows pointing inward).
-2. **The Power Unit:** Mount an ordinary 20-inch box fan blowing upward on top of the cube, sealing edges with duct tape.
-3. **Cardboard Shroud:** Cut a 15-inch circular cardboard cutout over the fan face. This eliminates corner vortex backdraft and increases CADR by 30%!
-4. **Mopping Protocol:** Never dry-sweep during smog days. Use damp microfiber cloths to capture settled particulates through van der Waals attraction.
+1. **Components:** 4 MERV-13 pleated air filters (standard 20×20 inch) taped into a cube with a 20-inch box fan mounted on top blowing upward.
+2. **Cardboard Shroud:** Cut a circular cardboard shroud matching the fan blade diameter over the face of the fan to minimize edge vortex backdraft.
+3. **Electrical Safety Caution:** Ensure the fan is rated for continuous duty and equipped with a fused safety plug. Periodically check the motor for dust buildup or overheating, and never leave DIY units running unattended.
+4. **Realistic Expectations:** Actual airflow and clean air delivery depend on filter thickness, fan motor pressure curves, and seal integrity.
 
-*Estimated Clean Air Delivery Rate (CADR):* **450–550 CFM**, matching commercial hospital-grade purifiers at 80% lower cost (UC Davis / EPA test data).`,
+*Note: Houseplants do not provide meaningful mechanical removal of particulate matter (PM2.5).*`,
       suggestedActions: [
-        'Show complete Corsi-Rosenthal build steps',
-        'Tips for kitchen range hood and cooking',
-        'Check child & infant smog safety'
+        'What safety precautions are required for DIY fans?',
+        'How to isolate kitchen cooking fumes?',
+        'Check child & elderly safety tips',
       ],
       impactHighlight: {
-        label: customNotice ? 'Engine Status' : 'Cost & Airflow Efficiency',
-        value: customNotice || '450+ CFM CADR at under $50 total cost',
-        type: customNotice ? 'warning' : 'positive'
-      }
+        label: customNotice ? 'Engine Status' : 'Filtration Science',
+        value: customNotice || 'MERV-13 filters capture fine particulate when properly sealed',
+        type: customNotice ? 'warning' : 'positive',
+      },
     };
   }
 
   // 3. Vulnerability: Children / Infants / Elderly / Asthma
-  if (query.includes('child') || query.includes('baby') || query.includes('infant') || query.includes('elderly') || query.includes('asthma') || query.includes('pregnant')) {
+  if (
+    query.includes('child') ||
+    query.includes('baby') ||
+    query.includes('infant') ||
+    query.includes('elderly') ||
+    query.includes('asthma') ||
+    query.includes('pregnant')
+  ) {
     return {
       id,
       role: 'assistant',
       timestamp,
-      content: `### 👶 Senior & Child Respiratory Defense Strategy
+      content: `### 👶 Respiratory Protection for Sensitive Individuals
 
-Given your profile alerts for **${context.vulnerabilities.join(', ') || 'Sensitive family members'}**:
+For households with **${context.vulnerabilities.join(', ') || 'sensitive members'}**:
 
-* **Why children are at triple the risk:** Children breathe 50% more air per pound of body weight and their narrower airways are easily irritated by PM2.5 and nitrogen dioxide (NO2) (WHO 2021).
-* **Create a "Clean Air Sanctuary" Bedroom:** Place your highest-capacity purifier or DIY filter in the sleeping room. Run it continuously with doors and windows locked.
-* **School & Transit Rule:** Shift outdoor sports activities to afternoons or indoor gymnasiums. Fit a genuine child-size N95/KF94 mask (cloth masks offer less than 15% PM2.5 filtration).
-* **Nebulizer & Medication Readiness:** Keep rescue inhalers at hand, and rinse eyes and face with saline water after arriving home from school or outdoors.`,
+* **Physiological Vulnerability:** Children have higher minute ventilation per kilogram of body weight, and seniors or respiratory patients face heightened bronchial inflammation from fine particulate (PM2.5) and nitrogen dioxide (NO2).
+* **Dedicated Clean Air Room:** Set up an isolated sleeping area with a continuously running mechanical air purifier (HEPA or sealed MERV-13). Keep doors and windows closed.
+* **Respirator Protection:** If traveling outdoors during elevated pollution, wear a properly fitted N95/FFP2 respirator. Cloth masks provide negligible seal and filtration against fine soot.
+* **Medical Disclaimer:** Always follow your physician's clinical guidance and asthma action plan. This tool provides environmental risk reduction advice, not medical diagnosis.`,
       suggestedActions: [
-        'How can our family travel without breathing smog?',
-        'Best plants for bedroom oxygenation?',
-        'Calculate my family’s daily pollution avoided'
+        'How to ensure a proper N95 mask seal?',
+        'What are the best indoor cleaning practices?',
+        'How does commute mode affect exposure?',
       ],
       impactHighlight: {
-        label: customNotice ? 'Engine Status' : 'Vulnerable Group Protection',
-        value: customNotice || 'Prevents 80%+ of deep alveolar soot penetration',
-        type: customNotice ? 'warning' : 'warning'
-      }
+        label: customNotice ? 'Engine Status' : 'Health Precaution',
+        value: customNotice || 'Sealed N95 respirator and isolated sleeping sanctuary recommended',
+        type: customNotice ? 'warning' : 'warning',
+      },
     };
   }
 
-  // 4. Commute & Routine optimization
-  if (query.includes('commute') || query.includes('travel') || query.includes('car') || query.includes('metro') || query.includes('routine') || query.includes('walk') || query.includes('exercise')) {
+  // 4. Commute & Routine queries
+  if (
+    query.includes('commute') ||
+    query.includes('travel') ||
+    query.includes('car') ||
+    query.includes('metro') ||
+    query.includes('routine') ||
+    query.includes('walk') ||
+    query.includes('bike')
+  ) {
     return {
       id,
       role: 'assistant',
       timestamp,
-      content: `### 🚲 Low-Emission Daily Routine & Travel Guide
+      content: `### 🚲 Commute & Exposure Optimization
 
-With your current commute (${context.commuteMode}) in **${context.cityName}**:
+Based on your current commute mode (${context.commuteMode}):
 
-* **Morning Travel:** Solo driving during bumper-to-bumper morning rush hour generates high localized exhaust and traps you inside a smog cabin.
-* **Mass Transit / Metro Alternative:** Switching to electric metro rail or shared carpooling saves approximately **2.4 kg of CO2** (EPA passenger vehicle factor) and **150 µg of PM2.5 inhalation** per trip.
-* **Cabin Air Setting:** When driving is unavoidable, set vehicle ventilation to **Internal Recirculation (Max A/C)** with an activated carbon cabin filter.
-* **Morning Exercise Shift:** Cease 6:00 AM outdoor jogging. Transition to indoor yoga, pilates, or stationary cycling where purified indoor air protects lung capacity.`,
+* **Roadway Exposure:** Heavy traffic corridors exhibit high concentrations of diesel soot and nitrogen dioxide (NO2).
+* **Cabin Air Setting:** When driving is unavoidable, set vehicle ventilation to **Internal Recirculation** with a clean cabin air filter to minimize direct exhaust ingress.
+* **Electrified Mass Transit:** Utilizing electric metro rail eliminates personal tailpipe emissions and reduces roadway exhaust exposure.
+* **Active Commuters:** If walking or cycling during high pollution, wear a fitted N95 respirator to prevent high-volume inhalation of coarse roadway dust.`,
       suggestedActions: [
-        'Adopt this commute routine in my tracker',
-        'What about evening outdoor dining or walks?',
-        'How does temperature inversion trap car exhaust?'
+        'How to calculate commute emissions saved?',
+        'When is outdoor exercise safest?',
+        'How to maintain good indoor air quality?',
       ],
       impactHighlight: {
-        label: customNotice ? 'Engine Status' : 'Daily Footprint Saving',
-        value: customNotice || 'Saves 2.4 kg CO2 & 150 µg PM2.5 per commute',
-        type: customNotice ? 'warning' : 'positive'
-      }
+        label: customNotice ? 'Engine Status' : 'Travel Optimization',
+        value: customNotice || 'Recirculated cabin air or mass transit reduces direct exposure',
+        type: customNotice ? 'warning' : 'info',
+      },
     };
   }
 
-  // Default contextual assistant response
+  // Default response
   return {
     id,
     role: 'assistant',
     timestamp,
-    content: `### 🛡️ AeroGuardian Smog Advisory for ${context.cityName}
+    content: `### 🛡️ AeroGuardian Advisory for ${context.cityName}
 
-Hello! I have analyzed the current air quality in **${context.cityName}** (AQI: **${context.currentAqi} - ${context.aqiCategory}**, PM2.5: **${context.pm25} µg/m³**).
+Currently tracking model-estimated **${aqiDisplay}** with fine particulate (PM2.5) around **${pm25Display}**.
 
-**Key Priorities for Your Family Today:**
-1. **Smog Peak Alert:** Atmospheric thermal inversion is currently ${context.inversionLayerActive ? 'active' : 'moderate'}. Avoid outdoor exertion during early morning and late evening.
-2. **Indoor Air Management:** Seal drafts around windows, run indoor filtration continuously, and defer room airing until the warm afternoon sun (1:30 PM - 3:30 PM).
-3. **Routine Optimization:** Adopt public transit or carpooling to reduce tailpipe emissions, and wear a well-fitted N95 respirator if stepping outdoors.
-4. **Cooking Precautions:** Use kitchen exhaust hoods and keep interior doors closed to prevent cooking aerosols from migrating to bedrooms.
+**Core Recommendations:**
+1. **Air Quality Source:** This tool displays atmospheric numerical model predictions (CAMS/Open-Meteo), which model regional ambient air rather than indoor conditions.
+2. **Indoor Protection:** Keep windows sealed when ambient AQI > 100, and operate mechanical filtration.
+3. **Respirators:** Use well-fitted N95/FFP2 masks during outdoor transit in dense traffic or high-AQI periods.
 
-What specific area would you like help tailoring for your household?`,
+*Notice: AeroGuardian provides environmental engineering guidance. For medical symptoms, consult a licensed healthcare professional.*`,
     suggestedActions: [
-      'How to build a low-cost DIY air purifier?',
-      'Optimize my commute to reduce emissions',
-      'What are the safe ventilation hours today?',
-      'Protecting children and seniors from smog'
+      'Is natural ventilation safe right now?',
+      'How to build a DIY Corsi-Rosenthal box?',
+      'How to protect sensitive family members?',
     ],
     impactHighlight: {
-      label: customNotice ? 'Engine Status' : 'Immediate Benefit',
-      value: customNotice || 'Applying these tips can lower indoor PM2.5 by 50-70%',
-      type: customNotice ? 'warning' : 'info'
-    }
+      label: customNotice ? 'Engine Status' : 'AeroGuardian Active',
+      value: customNotice || 'Deterministic environmental health intelligence engine',
+      type: customNotice ? 'warning' : 'info',
+    },
   };
 }
 
 /**
- * Main service to send queries to Gemini API with conversational history,
- * secure header key transmission, rate limiting, and robust heuristic fallback.
+ * Sends a chat message to Google Gemini API (gemini-3.8-flash) or switches to heuristic fallback.
+ *
+ * Integrity features:
+ * - Request configuration adheres to Gemini 3.8 documentation (no unsupported temperature/topP/topK).
+ * - Transmits API key strictly in HTTP header 'x-goog-api-key' (never in URL query).
+ * - Enforces 15-second request timeout via AbortController.
+ * - Validates conversation history (ensures alternating roles and bounds history length).
+ * - Treats user prompt and AI response as untrusted data.
+ * - Handles 400, 403, 404, 429, 5xx, and empty response errors gracefully.
  */
 export async function sendChatMessage(
-  messages: ChatMessage[],
+  history: ChatMessage[],
   userPrompt: string,
   context: AssistantContext,
-  apiKey?: string
+  apiKey: string
 ): Promise<ChatMessage> {
-  const sanitizedPrompt = sanitizePrompt(userPrompt);
-  const cleanKey = apiKey ? apiKey.trim() : '';
-
-  // 1. Check client-side rate limiter
-  if (!chatRateLimiter.canProceed()) {
-    return {
-      id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
-      role: 'assistant',
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      content: `⏳ **Rate Limit Notice**: You have sent several requests in quick succession. To ensure stability and avoid API quota exhaustion, please wait a few seconds before asking your next question.`,
-      impactHighlight: {
-        label: 'Rate Limiter',
-        value: 'Request throttled for safety (15 req/min limit)',
-        type: 'warning'
-      }
-    };
+  const sanitizedPrompt = sanitizePrompt(userPrompt, 2048);
+  if (!sanitizedPrompt) {
+    return generateHeuristicResponse('empty', context);
   }
 
-  // 2. If no Gemini key is provided, use offline heuristic engine
+  const cleanKey = apiKey ? apiKey.trim() : '';
+
+  // Fall back to heuristic engine if no key provided
   if (!cleanKey) {
     return generateHeuristicResponse(sanitizedPrompt, context);
   }
 
+  // UI-level rate limiting check
+  if (!chatRateLimiter.canProceed()) {
+    return generateHeuristicResponse(
+      sanitizedPrompt,
+      context,
+      `Client rate limit reached (15 req/min). Operating via offline heuristic engine.`
+    );
+  }
+
+  const systemInstruction = buildSystemPrompt(context);
+
+  // Validate and trim conversation history (last 6 messages max)
+  const safeHistory = Array.isArray(history) ? history.slice(-6) : [];
+  const contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = [];
+
+  for (const msg of safeHistory) {
+    if (!msg || typeof msg.content !== 'string' || !msg.content.trim()) continue;
+    const role: 'user' | 'model' = msg.role === 'user' ? 'user' : 'model';
+    contents.push({
+      role,
+      parts: [{ text: sanitizePrompt(msg.content, 1024) }],
+    });
+  }
+
+  // Append current prompt
+  contents.push({
+    role: 'user',
+    parts: [{ text: sanitizedPrompt }],
+  });
+
+  const timeoutController = new AbortController();
+  const timer = setTimeout(() => timeoutController.abort(), 15000);
+
   try {
-    const systemInstruction = buildSystemPrompt(context);
-
-    // Build multi-turn conversational history
-    const historyContents = (messages || [])
-      .filter((m) => m.role === 'user' || m.role === 'assistant')
-      .slice(-6) // Keep last 6 messages to preserve context window
-      .map((m) => ({
-        role: m.role === 'user' ? 'user' : 'model',
-        parts: [{ text: m.content }]
-      }));
-
-    // Add current user prompt
-    const contents = [
-      ...historyContents,
-      {
-        role: 'user',
-        parts: [{ text: sanitizedPrompt }]
-      }
-    ];
-
-    // Transmit API key safely via the 'x-goog-api-key' HTTP header (NOT in the query URL!)
     const response = await fetch(GEMINI_API_ENDPOINT, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-goog-api-key': cleanKey
+        'x-goog-api-key': cleanKey,
       },
       body: JSON.stringify({
         system_instruction: {
-          parts: [{ text: systemInstruction }]
+          parts: [{ text: systemInstruction }],
         },
         contents,
         generationConfig: {
-          temperature: 0.7,
-          topK: 40,
-          topP: 0.95,
-          maxOutputTokens: 1024
-        }
-      })
+          maxOutputTokens: 1024,
+        },
+      }),
+      signal: timeoutController.signal,
     });
 
+    clearTimeout(timer);
+
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      const errorMsg = errorData?.error?.message || `HTTP ${response.status}`;
-      console.warn(`Gemini API call failed (${errorMsg}). Switching to verified heuristic engine.`);
-      
-      return generateHeuristicResponse(
-        sanitizedPrompt,
-        context,
-        `Live Gemini API call failed (${errorMsg}). Operating via offline heuristic engine.`
-      );
+      const errorJson = await response.json().catch(() => ({}));
+      const apiErrorMsg = errorJson?.error?.message || `HTTP ${response.status}`;
+
+      let userFriendlyNotice = `Gemini API error (${response.status}). Switched to offline heuristic engine.`;
+      if (response.status === 400) {
+        userFriendlyNotice =
+          'Gemini API key appears invalid or malformed. Switched to offline engine.';
+      } else if (response.status === 403) {
+        userFriendlyNotice =
+          'Gemini API key unauthorized or quota exhausted. Switched to offline engine.';
+      } else if (response.status === 429) {
+        userFriendlyNotice = 'Gemini API rate limit exceeded. Switched to offline engine.';
+      } else if (response.status >= 500) {
+        userFriendlyNotice =
+          'Gemini cloud service temporarily unavailable. Switched to offline engine.';
+      }
+
+      console.warn(`Gemini API error (${apiErrorMsg}). Falling back to heuristic engine.`);
+      return generateHeuristicResponse(sanitizedPrompt, context, userFriendlyNotice);
     }
 
     const data = await response.json();
     const candidateText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
 
-    if (!candidateText) {
-      return generateHeuristicResponse(sanitizedPrompt, context);
+    if (!candidateText || typeof candidateText !== 'string' || !candidateText.trim()) {
+      return generateHeuristicResponse(
+        sanitizedPrompt,
+        context,
+        'Gemini returned an empty response or triggered safety filters. Switched to offline engine.'
+      );
     }
 
     return {
-      id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
+      id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
       role: 'assistant',
-      content: candidateText,
+      content: candidateText.trim(),
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       suggestedActions: [
-        'How does thermal inversion affect my city?',
-        'Show DIY Corsi-Rosenthal guide',
-        'Recalculate my family’s health exposure'
+        'How does atmospheric stagnation affect our city?',
+        'Show DIY Corsi-Rosenthal build instructions',
+        'Check child & elderly safety tips',
       ],
       impactHighlight: {
         label: 'Live AI Active',
         value: `Powered by Google Gemini (${GEMINI_MODEL_ID}) via secure header auth`,
-        type: 'info'
-      }
+        type: 'info',
+      },
     };
   } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    console.error('Failed to communicate with Gemini API, falling back to heuristic engine:', err);
+    clearTimeout(timer);
+    const isTimeout = err instanceof DOMException && err.name === 'AbortError';
+    const errorMsg = isTimeout
+      ? 'Request timed out after 15s'
+      : err instanceof Error
+        ? err.message
+        : String(err);
+
+    console.warn('Gemini request failed, falling back to heuristic engine:', errorMsg);
     return generateHeuristicResponse(
       sanitizedPrompt,
       context,
-      `Network/API error (${errorMsg || 'Offline'}). Operating via offline heuristic engine.`
+      `Network error (${errorMsg}). Switched to offline heuristic engine.`
     );
   }
 }

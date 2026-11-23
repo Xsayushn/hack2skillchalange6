@@ -1,41 +1,80 @@
 import { describe, it, expect } from 'vitest';
-import { CITIES_DATA, getAqiCategory, createCustomCity } from '../data/cityDefaults';
-import { IAQ_HACKS } from '../data/iaqHacks';
+import {
+  CITIES_DATA,
+  createCustomCity,
+  getAqiCategory,
+  validateHouseholdProfile,
+} from '../data/cityDefaults';
 
-describe('City and IAQ Static Knowledge Integrity', () => {
-  it('creates custom dynamic city with accurate speciation and inversion flags', () => {
-    const custom = createCustomCity('Patna', 320, 'India');
-    expect(custom.name).toBe('Patna');
-    expect(custom.currentAqi).toBe(320);
-    expect(custom.category).toBe('Hazardous');
-    expect(custom.inversionLayerActive).toBe(true);
-    expect(custom.pollutants.pm25).toBeGreaterThan(200);
-    expect(custom.hourlyForecast.length).toBe(5);
-  });
-  it('contains valid city datasets with comprehensive hourly diurnal forecasts', () => {
-    expect(CITIES_DATA.length).toBeGreaterThanOrEqual(4);
-    for (const city of CITIES_DATA) {
-      expect(city.name).toBeDefined();
-      expect(city.currentAqi).toBeGreaterThan(0);
-      expect(city.pollutants.pm25).toBeGreaterThan(0);
-      expect(city.hourlyForecast.length).toBeGreaterThanOrEqual(3);
-    }
+describe('City Defaults, Offline Presets & Profile Validation', () => {
+  it('marks all built-in city presets as offline demo presets', () => {
+    expect(CITIES_DATA.length).toBe(5);
+    CITIES_DATA.forEach((city) => {
+      expect(city.sourceType).toBe('offline_preset');
+      expect(city.attribution).toContain('offline demo preset');
+      expect(city.estimatedStagnationRisk).toBeDefined();
+    });
   });
 
-  it('maps AQI indices to standard WHO/EPA categories', () => {
-    expect(getAqiCategory(35).category).toBe('Good');
+  it('categorizes AQI correctly across EPA break-points', () => {
+    expect(getAqiCategory(30).category).toBe('Good');
     expect(getAqiCategory(75).category).toBe('Moderate');
-    expect(getAqiCategory(130).category).toBe('Unhealthy for Sensitive Groups');
-    expect(getAqiCategory(180).category).toBe('Unhealthy');
+    expect(getAqiCategory(125).category).toBe('Unhealthy for Sensitive Groups');
+    expect(getAqiCategory(175).category).toBe('Unhealthy');
     expect(getAqiCategory(250).category).toBe('Very Unhealthy');
-    expect(getAqiCategory(420).category).toBe('Hazardous');
+    expect(getAqiCategory(350).category).toBe('Hazardous');
+    expect(getAqiCategory(null).category).toBe('Unknown');
   });
 
-  it('includes Corsi-Rosenthal box and diurnal inversion hacks with scientific principles', () => {
-    const corsi = IAQ_HACKS.find(h => h.id === 'corsi-rosenthal-box');
-    expect(corsi).toBeDefined();
-    expect(corsi?.efficacyScore).toBeGreaterThanOrEqual(90);
-    expect(corsi?.scientificMechanism).toBeDefined();
-    expect(corsi?.steps.length).toBeGreaterThanOrEqual(4);
+  it('creates custom cities WITHOUT calculating fake pollutant speciation or fake forecasts', () => {
+    const custom = createCustomCity('Kanpur', 280, 'India');
+
+    expect(custom.name).toBe('Kanpur');
+    expect(custom.currentAqi).toBe(280);
+    expect(custom.sourceType).toBe('manual_estimate');
+    expect(custom.isCustomCity).toBe(true);
+
+    // CRITICAL SCIENTIFIC INTEGRITY:
+    // Individual pollutant readings MUST be null when only AQI is entered manually!
+    expect(custom.pollutants.pm25).toBeNull();
+    expect(custom.pollutants.pm10).toBeNull();
+    expect(custom.pollutants.no2).toBeNull();
+    expect(custom.pollutants.o3).toBeNull();
+    expect(custom.pollutants.co).toBeNull();
+    expect(custom.pollutants.so2).toBeNull();
+
+    // Hourly forecast MUST be empty, not synthetic
+    expect(custom.hourlyForecast).toEqual([]);
+    expect(custom.temperatureC).toBeNull();
+    expect(custom.humidityPct).toBeNull();
+  });
+
+  it('validates and sanitizes household profiles loaded from untrusted storage', () => {
+    const corruptedPayload = {
+      name: '  Overly Long Name That Should Be Sanitized Properly   ',
+      cityId: 'delhi',
+      vulnerabilities: ['Infant/Child', 'NonExistentVulnerability', 'Respiratory/Asthma'],
+      dailyCommuteMode: 'Spaceship', // Invalid enum
+      commuteDistanceKm: -50, // Invalid negative
+      hasAirPurifier: 'not-a-boolean',
+      childrenCount: 25, // Clamped to 10
+      elderlyCount: -2,
+    };
+
+    const sanitized = validateHouseholdProfile(corruptedPayload);
+
+    expect(sanitized.name).toBe('Overly Long Name That Should Be Sanitized Properly');
+    expect(sanitized.vulnerabilities).toEqual(['Infant/Child', 'Respiratory/Asthma']);
+    expect(sanitized.dailyCommuteMode).toBe('Private Car'); // Falls back to valid enum
+    expect(sanitized.commuteDistanceKm).toBeGreaterThanOrEqual(0.5);
+    expect(sanitized.childrenCount).toBe(10); // Clamped
+    expect(sanitized.elderlyCount).toBe(0);
+  });
+
+  it('returns default profile when storage payload is empty or invalid', () => {
+    const fallback = validateHouseholdProfile(null);
+    expect(fallback.name).toBe('My Household');
+    expect(fallback.cityId).toBe('delhi');
+    expect(fallback.dailyCommuteMode).toBe('Private Car');
   });
 });

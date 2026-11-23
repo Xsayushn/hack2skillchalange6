@@ -1,4 +1,10 @@
-import { CityData, HourlyForecast, PollutantValues } from '../types/aqi';
+import {
+  CityData,
+  HourlyForecast,
+  PollutantValues,
+  StagnationRiskLevel,
+  DataSourceType,
+} from '../types/aqi';
 import { getAqiCategory } from '../data/cityDefaults';
 
 export interface CityCoordinates {
@@ -10,79 +16,144 @@ export interface CityCoordinates {
 }
 
 export const KNOWN_CITY_COORDINATES: CityCoordinates[] = [
-  { id: 'delhi', name: 'Delhi NCR', country: 'India', lat: 28.6139, lon: 77.2090 },
+  { id: 'delhi', name: 'Delhi NCR', country: 'India', lat: 28.6139, lon: 77.209 },
   { id: 'lahore', name: 'Lahore', country: 'Pakistan', lat: 31.5204, lon: 74.3587 },
   { id: 'beijing', name: 'Beijing', country: 'China', lat: 39.9042, lon: 116.4074 },
-  { id: 'milan', name: 'Milan (Po Valley)', country: 'Italy', lat: 45.4642, lon: 9.1900 },
-  { id: 'los-angeles', name: 'Los Angeles', country: 'USA', lat: 34.0522, lon: -118.2437 }
+  { id: 'milan', name: 'Milan (Po Valley)', country: 'Italy', lat: 45.4642, lon: 9.19 },
+  { id: 'los-angeles', name: 'Los Angeles', country: 'USA', lat: 34.0522, lon: -118.2437 },
 ];
 
 export interface LiveAqiResult {
   cityData: CityData;
-  source: 'Open-Meteo CAMS Model' | 'Offline Backup Preset';
+  source: DataSourceType;
   timestamp: string;
+  isCached: boolean;
 }
 
-// 15-minute in-memory cache to prevent duplicate network roundtrips and avoid rate limits
+// 15-minute coordinate-based cache
 const CACHE_TTL_MS = 15 * 60 * 1000;
-const aqiCache = new Map<string, { data: LiveAqiResult; timestamp: number }>();
+interface CacheEntry {
+  data: LiveAqiResult;
+  timestamp: number;
+}
+const aqiCache = new Map<string, CacheEntry>();
+
+export function getCacheKey(lat: number, lon: number): string {
+  return `${lat.toFixed(4)},${lon.toFixed(4)}`;
+}
 
 export function clearAqiCache(): void {
   aqiCache.clear();
 }
 
-export function getCachedAqi(cityId: string): LiveAqiResult | null {
-  const cached = aqiCache.get(cityId);
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
-    return cached.data;
+export function getCachedAqi(lat: number, lon: number): LiveAqiResult | null {
+  const key = getCacheKey(lat, lon);
+  const entry = aqiCache.get(key);
+  if (entry && Date.now() - entry.timestamp < CACHE_TTL_MS) {
+    return {
+      ...entry.data,
+      source: 'cached_cams_model',
+      isCached: true,
+    };
   }
   return null;
 }
 
 /**
- * Evaluates whether natural ventilation is biologically safe based on strict WHO & EPA standards:
- * - AQI <= 50 (Good): Safe
- * - AQI 51 - 100 (Moderate): Safe during afternoon solar convective mixing (13:00 - 15:30)
- * - AQI 101 - 150 (Sensitive Groups): Only brief 10m aeration permitted; sensitive members isolated
- * - AQI > 150 (Unhealthy / Hazardous): UNSAFE. Windows strictly locked; rely on indoor filtration.
+ * Validates whether a value is a valid finite number.
+ * Note: 0 is a completely valid reading.
  */
-export function evaluateVentilationSafety(aqi: number, hourNum: number): { safe: boolean; advice: string } {
-  const isSolarConvectiveWindow = hourNum >= 13 && hourNum <= 15;
+export function parseValidNumber(val: unknown): number | null {
+  if (typeof val === 'number') {
+    return isFinite(val) && !isNaN(val) ? val : null;
+  }
+  if (typeof val === 'string' && val.trim() !== '') {
+    const num = Number(val);
+    return isFinite(num) && !isNaN(num) ? num : null;
+  }
+  return null;
+}
+
+/**
+ * Evaluates whether natural ventilation is biologically safe based on predicted AQI.
+ * Does NOT declare an afternoon hour safe solely because it is afternoon.
+ * When AQI is missing or > 100, natural ventilation is not recommended.
+ */
+export function evaluateVentilationSafety(aqi: number | null): {
+  viable: boolean | null;
+  advice: string;
+} {
+  if (aqi === null || typeof aqi !== 'number' || isNaN(aqi)) {
+    return { viable: null, advice: 'Forecast data unavailable to evaluate ventilation viability.' };
+  }
 
   if (aqi <= 50) {
-    return { safe: true, advice: 'Clean ambient air. Safe for natural cross-ventilation.' };
+    return {
+      viable: true,
+      advice: 'Ambient air is clean (AQI <= 50). Safe for cross-ventilation.',
+    };
   }
   if (aqi <= 100) {
-    if (isSolarConvectiveWindow) {
-      return { safe: true, advice: 'Solar convective mixing lifts boundary layer. Safe for 20-30m aeration.' };
-    }
-    return { safe: false, advice: 'Morning/evening ground cooling traps moderate particulates. Postpone airing to midday.' };
+    return {
+      viable: true,
+      advice:
+        'Moderate ambient air (AQI 51–100). Safe for short 15–20m aeration; sensitive individuals monitor air quality.',
+    };
   }
   if (aqi <= 150) {
-    if (isSolarConvectiveWindow) {
-      return { safe: false, advice: 'Marginal solar window. Brief 10m aeration only if indoor CO2 is high; sensitive individuals stay in filtered room.' };
-    }
-    return { safe: false, advice: 'Stagnant boundary air. Keep windows closed.' };
+    return {
+      viable: false,
+      advice:
+        'Unhealthy for Sensitive Groups (AQI 101–150). Natural ventilation not recommended; use indoor filtration.',
+    };
   }
   return {
-    safe: false,
-    advice: 'Severe smog alert. Unsafe to ventilate. Keep windows sealed; run Corsi-Rosenthal / HEPA air cleaners.'
+    viable: false,
+    advice:
+      'Elevated particulate pollution (AQI > 150). Windows strictly sealed; operate mechanical indoor filtration.',
   };
 }
 
 /**
- * Fetches real air quality & meteorological telemetry concurrently via Promise.all
- * from Open-Meteo & Copernicus Atmosphere Monitoring Service (CAMS).
- * Uses city local timestamps from the API to guarantee timezone-accurate forecast slicing.
- * Implements 15-minute in-memory caching and request abort timeout.
+ * Estimates stagnation risk level using atmospheric pollutant concentration.
+ * Clearly framed as a ground-level stagnation risk, not a verified physical thermal inversion.
+ */
+export function estimateStagnationRisk(
+  aqi: number | null,
+  pm25: number | null
+): StagnationRiskLevel {
+  if (aqi === null && pm25 === null) return 'Unknown';
+  if ((aqi !== null && aqi >= 250) || (pm25 !== null && pm25 >= 180)) return 'High';
+  if ((aqi !== null && aqi >= 101) || (pm25 !== null && pm25 >= 60)) return 'Medium';
+  return 'Low';
+}
+
+export interface FetchLiveAqiOptions {
+  bypassCache?: boolean;
+  timeoutMs?: number;
+  signal?: AbortSignal;
+}
+
+/**
+ * Fetches real-time numerical model forecast telemetry from Open-Meteo & Copernicus CAMS.
+ *
+ * Integrity features:
+ * - Compares full ISO timestamps (never truncates 14:15 to 14:00).
+ * - Selects first forecast at or after current timestamp; never falls back to index 0 if in the past.
+ * - Never fabricates fake forecast entries if no valid forecast was returned.
+ * - Preserves zero as a valid reading (never uses || fallback for numeric readings).
+ * - Validates schema, types, and parallel array lengths.
+ * - Correctly parses units (converts CO from µg/m³ to mg/m³).
+ * - Distinguishes live model vs cached model vs offline presets vs manual estimates.
+ * - Coordinates-based cache with manual bypass and abort timeout.
  */
 export async function fetchLiveAqi(
   city: CityCoordinates,
-  options?: { bypassCache?: boolean; timeoutMs?: number; signal?: AbortSignal }
+  options?: FetchLiveAqiOptions
 ): Promise<LiveAqiResult> {
-  // Check in-memory cache first to eliminate duplicate requests
+  // Check coordinate-based cache
   if (!options?.bypassCache) {
-    const cached = getCachedAqi(city.id);
+    const cached = getCachedAqi(city.lat, city.lon);
     if (cached) {
       return cached;
     }
@@ -91,103 +162,161 @@ export async function fetchLiveAqi(
   const aqiUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${city.lat}&longitude=${city.lon}&current=us_aqi,pm2_5,pm10,nitrogen_dioxide,ozone,carbon_monoxide,sulphur_dioxide&hourly=us_aqi,pm2_5&timezone=auto&forecast_days=2`;
   const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${city.lat}&longitude=${city.lon}&current=temperature_2m,relative_humidity_2m&timezone=auto`;
 
-  // Timeout controller to ensure network operations never hang
+  // Timeout controller that covers both fetch and json parsing
   const timeoutMs = options?.timeoutMs ?? 8000;
   const timeoutController = new AbortController();
   const timer = setTimeout(() => timeoutController.abort(), timeoutMs);
 
-  try {
-    const fetchSignal = options?.signal || timeoutController.signal;
+  // Link caller signal if provided
+  const callerSignal = options?.signal;
+  const abortHandler = () => timeoutController.abort();
+  if (callerSignal) {
+    if (callerSignal.aborted) {
+      clearTimeout(timer);
+      throw new DOMException('Request was aborted by caller', 'AbortError');
+    }
+    callerSignal.addEventListener('abort', abortHandler);
+  }
 
-    // Parallel fetch: Air quality and weather concurrently
+  try {
     const [aqiRes, weatherRes] = await Promise.all([
-      fetch(aqiUrl, { signal: fetchSignal }),
-      fetch(weatherUrl, { signal: fetchSignal }).catch(() => null)
+      fetch(aqiUrl, { signal: timeoutController.signal }),
+      fetch(weatherUrl, { signal: timeoutController.signal }).catch(() => null),
     ]);
 
-    clearTimeout(timer);
-
     if (!aqiRes.ok) {
-      throw new Error(`Open-Meteo CAMS API responded with HTTP ${aqiRes.status}`);
+      throw new Error(`Open-Meteo CAMS API responded with HTTP status ${aqiRes.status}`);
     }
 
     const aqiData = await aqiRes.json();
-    
-    // Runtime response validation
+    clearTimeout(timer);
+
+    // Validate top-level payload
     if (!aqiData || typeof aqiData !== 'object') {
       throw new Error('Invalid JSON payload received from Open-Meteo API');
     }
 
-    const current = aqiData.current || {};
-    const hourly = aqiData.hourly || {};
+    const current = aqiData.current && typeof aqiData.current === 'object' ? aqiData.current : null;
+    const hourly = aqiData.hourly && typeof aqiData.hourly === 'object' ? aqiData.hourly : null;
 
-    // Telemetry parsing with strict range guards
-    const currentAqi = Math.max(0, Math.min(500, Math.round(Number(current.us_aqi) || 150)));
+    if (!current) {
+      throw new Error('Missing "current" telemetry block in Open-Meteo response');
+    }
+
+    // Extract time and timezone
+    const timezone: string = typeof aqiData.timezone === 'string' ? aqiData.timezone : 'UTC';
+    const utcOffsetSeconds: number =
+      typeof aqiData.utc_offset_seconds === 'number' ? aqiData.utc_offset_seconds : 0;
+    const currentTimestamp: string | null =
+      typeof current.time === 'string' && current.time ? current.time : null;
+
+    // Parse current pollutant values with zero-preservation
+    const rawAqi = parseValidNumber(current.us_aqi);
+    const currentAqi = rawAqi !== null ? Math.round(rawAqi) : null;
     const { category } = getAqiCategory(currentAqi);
-    const pm25 = Math.max(0, Math.round(Number(current.pm2_5) || 60));
-    const pm10 = Math.max(0, Math.round(Number(current.pm10) || 90));
-    const no2 = Math.max(0, Math.round(Number(current.nitrogen_dioxide) || 40));
-    const o3 = Math.max(0, Math.round(Number(current.ozone) || 30));
-    const co = Math.max(0, Number(((Number(current.carbon_monoxide) || 500) / 1000).toFixed(1)));
-    const so2 = Math.max(0, Math.round(Number(current.sulphur_dioxide) || 10));
 
-    // Weather telemetry parsing
-    let temperatureC = 16;
-    let humidityPct = 65;
+    const rawPm25 = parseValidNumber(current.pm2_5);
+    const pm25 = rawPm25 !== null ? Math.round(rawPm25) : null;
+
+    const rawPm10 = parseValidNumber(current.pm10);
+    const pm10 = rawPm10 !== null ? Math.round(rawPm10) : null;
+
+    const rawNo2 = parseValidNumber(current.nitrogen_dioxide);
+    const no2 = rawNo2 !== null ? Math.round(rawNo2) : null;
+
+    const rawO3 = parseValidNumber(current.ozone);
+    const o3 = rawO3 !== null ? Math.round(rawO3) : null;
+
+    // Open-Meteo CAMS returns CO in µg/m³. Convert to mg/m³ (1 mg = 1000 µg).
+    const rawCo = parseValidNumber(current.carbon_monoxide);
+    const co = rawCo !== null ? Number((rawCo / 1000).toFixed(2)) : null;
+
+    const rawSo2 = parseValidNumber(current.sulphur_dioxide);
+    const so2 = rawSo2 !== null ? Math.round(rawSo2) : null;
+
+    const pollutants: PollutantValues = { pm25, pm10, no2, o3, co, so2 };
+
+    // Weather parsing
+    let temperatureC: number | null = null;
+    let humidityPct: number | null = null;
+    let isWeatherEstimated = true;
+
     if (weatherRes && weatherRes.ok) {
       try {
         const wData = await weatherRes.json();
-        if (typeof wData.current?.temperature_2m === 'number') {
-          temperatureC = Math.round(wData.current.temperature_2m);
+        const rawTemp = parseValidNumber(wData?.current?.temperature_2m);
+        const rawHumidity = parseValidNumber(wData?.current?.relative_humidity_2m);
+        if (rawTemp !== null) {
+          temperatureC = Math.round(rawTemp);
+          isWeatherEstimated = false;
         }
-        if (typeof wData.current?.relative_humidity_2m === 'number') {
-          humidityPct = Math.round(wData.current.relative_humidity_2m);
+        if (rawHumidity !== null) {
+          humidityPct = Math.round(rawHumidity);
         }
       } catch {
-        // Fallback to estimated regional defaults
+        // Leave weather as null / estimated
       }
     }
 
-    // Timezone-accurate local hour from Open-Meteo's own local timestamp (e.g. "2026-11-23T14:15")
-    const localTimeStr: string = typeof current.time === 'string' ? current.time : '';
-    const localHour = localTimeStr.includes('T') 
-      ? parseInt(localTimeStr.split('T')[1].slice(0, 2), 10) 
-      : new Date().getHours();
+    // Ground-level stagnation risk
+    const stagnationRisk = estimateStagnationRisk(currentAqi, pm25);
+    const stagnationExplanation =
+      stagnationRisk === 'High'
+        ? 'Numerical model indicates surface particulate buildup consistent with stagnant boundary conditions. Actual thermal inversion layers require vertical atmospheric sounding data.'
+        : stagnationRisk === 'Medium'
+          ? 'Moderate surface accumulation modeled. Regional ventilation varies by terrain.'
+          : 'Model predicts active boundary mixing and dispersion.';
 
-    const isInversion = currentAqi > 200 || (pm25 > 100 && (localHour < 10 || localHour > 18));
-
-    // Dynamic timeline: Accurately locate the current/next upcoming hour in the local timeline
-    // and grab 7 consecutive forecast hours
+    // Forecast processing: Compare full ISO timestamp; never truncate 14:15 to 14:00.
     const hourlyForecast: HourlyForecast[] = [];
-    if (Array.isArray(hourly.time) && Array.isArray(hourly.us_aqi) && Array.isArray(hourly.pm2_5)) {
-      // Find index matching or immediately following the city's local time
-      const targetPrefix = localTimeStr.includes('T') ? localTimeStr.slice(0, 13) : '';
-      let startIndex = targetPrefix ? hourly.time.findIndex((t: string) => t >= targetPrefix) : -1;
-      if (startIndex === -1) startIndex = 0;
+    if (
+      hourly &&
+      Array.isArray(hourly.time) &&
+      Array.isArray(hourly.us_aqi) &&
+      Array.isArray(hourly.pm2_5)
+    ) {
+      // Parallel array length guard
+      const safeLen = Math.min(hourly.time.length, hourly.us_aqi.length, hourly.pm2_5.length);
 
-      // Extract consecutive upcoming hours
-      for (let i = startIndex; i < hourly.time.length && hourlyForecast.length < 7; i++) {
-        const rawTime = hourly.time[i] || '';
-        const timeStr = rawTime.includes('T') ? rawTime.split('T')[1].slice(0, 5) : `${i}:00`;
-        const aqiVal = Math.round(Number(hourly.us_aqi[i]) || currentAqi);
-        const pmVal = Math.round(Number(hourly.pm2_5[i]) || pm25);
-        const hourNum = parseInt(timeStr.slice(0, 2), 10);
-
-        const { safe: ventilationSafe, advice: recommendation } = evaluateVentilationSafety(aqiVal, hourNum);
-        const invRisk = aqiVal > 250 ? 'High' : aqiVal > 120 ? 'Medium' : 'Low';
-
-        hourlyForecast.push({
-          hour: timeStr,
-          aqi: aqiVal,
-          pm25: pmVal,
-          inversionRisk: invRisk,
-          ventilationSafe,
-          recommendation
+      // Find first forecast timestamp at or after current timestamp
+      let startIndex = -1;
+      if (currentTimestamp) {
+        startIndex = hourly.time.findIndex((t: unknown, idx: number) => {
+          if (idx >= safeLen || typeof t !== 'string') return false;
+          // Full ISO comparison: e.g. "2026-11-23T14:00" >= "2026-11-23T14:15"
+          return t >= currentTimestamp;
         });
       }
-    }
 
-    const pollutants: PollutantValues = { pm25, pm10, no2, o3, co, so2 };
+      // CRITICAL: Never fall back to index 0 if no future match is available!
+      // If startIndex is -1, it means the API payload contains only past timestamps; do NOT show past as future!
+      if (startIndex !== -1) {
+        for (let i = startIndex; i < safeLen && hourlyForecast.length < 7; i++) {
+          const rawTime = hourly.time[i];
+          if (typeof rawTime !== 'string') continue;
+
+          const timeStr = rawTime.includes('T') ? rawTime.split('T')[1].slice(0, 5) : rawTime;
+          const fAqi = parseValidNumber(hourly.us_aqi[i]);
+          const roundedAqi = fAqi !== null ? Math.round(fAqi) : null;
+          const fPm25 = parseValidNumber(hourly.pm2_5[i]);
+          const roundedPm25 = fPm25 !== null ? Math.round(fPm25) : null;
+
+          const { viable: ventilationViable, advice: recommendation } =
+            evaluateVentilationSafety(roundedAqi);
+          const fRisk = estimateStagnationRisk(roundedAqi, roundedPm25);
+
+          hourlyForecast.push({
+            time: rawTime,
+            hour: timeStr,
+            aqi: roundedAqi,
+            pm25: roundedPm25,
+            stagnationRisk: fRisk,
+            ventilationViable,
+            recommendation,
+          });
+        }
+      }
+    }
 
     const cityData: CityData = {
       id: city.id,
@@ -198,34 +327,40 @@ export async function fetchLiveAqi(
       pollutants,
       temperatureC,
       humidityPct,
-      inversionLayerActive: isInversion,
-      primarySmogSource: isInversion
-        ? 'Thermal boundary inversion trapping ground aerosols & vehicle exhaust (CAMS model)'
-        : 'Ambient regional aerosol dispersion (Copernicus CAMS atmospheric model)',
-      hourlyForecast: hourlyForecast.length > 0 ? hourlyForecast : [
-        { hour: '08:00', aqi: Math.round(currentAqi * 1.15), pm25: Math.round(pm25 * 1.15), inversionRisk: 'High', ventilationSafe: false, recommendation: 'Morning cold inversion peak.' },
-        { hour: '14:00', aqi: Math.round(currentAqi * 0.8), pm25: Math.round(pm25 * 0.8), inversionRisk: 'Low', ventilationSafe: currentAqi <= 100, recommendation: 'Solar mixing window.' },
-        { hour: '20:00', aqi: currentAqi, pm25: pm25, inversionRisk: 'High', ventilationSafe: false, recommendation: 'Evening smog accumulation.' }
-      ],
-      isLiveModel: true,
-      attribution: 'Open-Meteo & Copernicus CAMS atmospheric model'
+      estimatedStagnationRisk: stagnationRisk,
+      stagnationExplanation,
+      hourlyForecast, // Empty if no valid future forecast; never fake!
+      sourceType: 'live_cams_model',
+      isWeatherEstimated,
+      attribution:
+        'Copernicus Atmosphere Monitoring Service (CAMS) & Open-Meteo numerical model forecast',
+      lastUpdatedTime: currentTimestamp || new Date().toISOString(),
+      timezone,
+      utcOffsetSeconds,
+      lat: city.lat,
+      lon: city.lon,
     };
 
     const result: LiveAqiResult = {
       cityData,
-      source: 'Open-Meteo CAMS Model',
-      timestamp: localTimeStr.includes('T') 
-        ? localTimeStr.split('T')[1].slice(0, 5) 
-        : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      source: 'live_cams_model',
+      timestamp: currentTimestamp ? currentTimestamp.replace('T', ' ') : 'Live model update',
+      isCached: false,
     };
 
-    // Store in cache
-    aqiCache.set(city.id, { data: result, timestamp: Date.now() });
+    // Store in coordinate cache
+    aqiCache.set(getCacheKey(city.lat, city.lon), {
+      data: result,
+      timestamp: Date.now(),
+    });
 
     return result;
   } catch (err) {
     clearTimeout(timer);
-    console.warn(`Failed to fetch live AQI for ${city.name}, falling back to preset data:`, err);
     throw err;
+  } finally {
+    if (callerSignal) {
+      callerSignal.removeEventListener('abort', abortHandler);
+    }
   }
 }

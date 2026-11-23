@@ -16,15 +16,21 @@ export const Navbar: React.FC<NavbarProps> = ({
   highContrast,
   toggleHighContrast,
   activeTab,
-  setActiveTab
+  setActiveTab,
 }) => {
   return (
-    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 transition-colors shadow-sm" role="banner">
+    <header
+      className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 transition-colors shadow-sm"
+      role="banner"
+    >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo & Brand */}
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 flex items-center justify-center text-white shadow-md shadow-emerald-500/20" aria-hidden="true">
+            <div
+              className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 flex items-center justify-center text-white shadow-md shadow-emerald-500/20"
+              aria-hidden="true"
+            >
               <Wind className="w-6 h-6 animate-pulse" />
             </div>
             <div>
@@ -36,12 +42,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                   GenAI Urban Assistant
                 </span>
               </div>
-              <p className="text-xs text-slate-500 hidden sm:block">Winter Smog & Indoor Air Quality Intelligence</p>
+              <p className="text-xs text-slate-500 hidden sm:block">
+                Winter Smog & Indoor Air Quality Intelligence
+              </p>
             </div>
           </div>
 
           {/* Navigation Tabs */}
-          <nav className="hidden md:flex items-center space-x-1" role="navigation" aria-label="Main Navigation">
+          <nav
+            className="hidden md:flex items-center space-x-1"
+            role="navigation"
+            aria-label="Main Navigation"
+          >
             <button
               onClick={() => setActiveTab('dashboard')}
               className={`px-3.5 py-2 rounded-lg text-sm font-semibold transition-all ${
@@ -91,8 +103,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               onClick={toggleHighContrast}
               className={`p-2 rounded-lg border text-sm font-medium transition-colors flex items-center gap-1.5 ${
-                highContrast 
-                  ? 'bg-black text-yellow-300 border-yellow-300' 
+                highContrast
+                  ? 'bg-black text-yellow-300 border-yellow-300'
                   : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
               }`}
               title="Toggle High Contrast for Accessibility (WCAG 2.1 AA)"

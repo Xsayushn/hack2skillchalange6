@@ -1,105 +1,127 @@
 import React from 'react';
 import { UserImpactMetrics } from '../types/aqi';
-import { Award, Leaf, Sparkles, TrendingUp, Heart } from 'lucide-react';
+import { Leaf, Heart, CheckCircle2, Info } from 'lucide-react';
 
 interface ImpactTrackerProps {
   metrics: UserImpactMetrics;
 }
 
 export const ImpactTracker: React.FC<ImpactTrackerProps> = ({ metrics }) => {
+  const { calculationAssumptions: ca } = metrics;
+
   return (
-    <section 
+    <section
       className="bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-950 rounded-3xl p-6 sm:p-8 text-white shadow-xl card-surface"
       role="region"
-      aria-label="Household Environmental Impact and Health Exposure Savings Tracker"
+      aria-label="Household Modeled Exposure and Transportation Impact Tracker"
     >
       <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-white/10 gap-3">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
-              Community Smog Reduction Impact
-            </span>
-          </div>
-          <h2 className="text-2xl font-black mt-2">
-            Your Personal & Ecological Footprint Saved
-          </h2>
+          <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+            Defensible Exposure & Transportation Math
+          </span>
+          <h2 className="text-2xl font-black mt-2">Modeled Exposure & Emission Savings</h2>
           <p className="text-xs text-slate-300 mt-1">
-            Quantified contribution to urban emissions reduction and family health protection.
+            Empirical calculations based on EPA Exposure Factors and AP-42 vehicle emission
+            conversion factors.
           </p>
         </div>
 
-        {/* Community Percentile Pill */}
+        {/* Adopted count badge */}
         <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-white/15">
-          <Award className="w-6 h-6 text-yellow-400 animate-bounce" />
+          <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" aria-hidden="true" />
           <div>
-            <div className="text-xs text-slate-300 font-medium">Community Impact Tier (Model Estimate)</div>
-            <div className="text-sm font-extrabold text-white">Top {100 - metrics.communityRankPercentile}% Clean Living Tier</div>
+            <div className="text-xs text-slate-300 font-medium">Adopted Actions</div>
+            <div className="text-sm font-extrabold text-white">
+              {metrics.adoptedRoutinesCount} of 4 Selected
+            </div>
           </div>
         </div>
       </div>
 
-      {/* 4-Tile High Impact Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
-        {/* Metric 1: PM2.5 Inhalation Avoided */}
-        <div className="p-4 rounded-2xl bg-white/5 border border-white/10">
-          <div className="flex items-center gap-1.5 text-xs font-bold text-rose-300">
-            <Heart className="w-4 h-4 text-rose-400" />
-            <span>PM2.5 Exposure Avoided</span>
+      {/* Primary Metrics Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+        {/* Metric 1: Inhaled PM2.5 Mass Reduction */}
+        <div className="p-5 rounded-2xl bg-white/5 border border-white/10">
+          <div className="flex items-center gap-2 text-xs font-bold text-rose-300">
+            <Heart className="w-4 h-4 text-rose-400" aria-hidden="true" />
+            <span>Estimated Inhaled PM2.5 Mass Reduction</span>
           </div>
-          <div className="text-2xl sm:text-3xl font-black mt-2 text-white">
-            {metrics.totalPm25AvoidedUg.toLocaleString()} <span className="text-xs font-normal text-slate-400">µg</span>
+          <div className="text-3xl font-black mt-2 text-white">
+            {metrics.estimatedInhaledMassSavedUg.toLocaleString()}{' '}
+            <span className="text-sm font-normal text-slate-400">µg PM2.5</span>
           </div>
-          <p className="text-[11px] text-slate-300 mt-1">
-            Modeled via EPA minute ventilation (0.6 - 2.1 m³/hr) & N95 filtration.
+          <p className="text-xs text-slate-300 mt-2 leading-relaxed">
+            Estimates ambient fine particulate mass kept out of the upper respiratory tract via
+            behavioral substitution and fitted N95 filtration.
           </p>
+          <div className="mt-3 pt-3 border-t border-white/10 text-[11px] text-slate-400">
+            * Disclaimer: Inhaled mass represents aerosol intake; it is not a clinical
+            lung-deposited dose.
+          </div>
         </div>
 
-        {/* Metric 2: CO2 Saved */}
-        <div className="p-4 rounded-2xl bg-white/5 border border-white/10">
-          <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-300">
-            <Leaf className="w-4 h-4 text-emerald-400" />
-            <span>CO₂ Emissions Prevented</span>
+        {/* Metric 2: Transportation CO2 Delta */}
+        <div className="p-5 rounded-2xl bg-white/5 border border-white/10">
+          <div className="flex items-center gap-2 text-xs font-bold text-emerald-300">
+            <Leaf className="w-4 h-4 text-emerald-400" aria-hidden="true" />
+            <span>Transportation CO₂ Operational Delta</span>
           </div>
-          <div className="text-2xl sm:text-3xl font-black mt-2 text-white">
-            {metrics.totalCo2SavedKg} <span className="text-xs font-normal text-slate-400">kg</span>
+          <div className="text-3xl font-black mt-2 text-white">
+            {metrics.transportCo2SavedKg}{' '}
+            <span className="text-sm font-normal text-slate-400">kg CO₂ / round-trip</span>
           </div>
-          <p className="text-[11px] text-slate-300 mt-1">
-            Based on EPA passenger car factor (0.192 kg CO2/km vs 0.038 kg metro).
+          <p className="text-xs text-slate-300 mt-2 leading-relaxed">
+            Direct operational emission difference between reported baseline commute (
+            {ca.commuteMode}) and electrified public transit over {ca.commuteDistanceKm * 2} km.
           </p>
-        </div>
-
-        {/* Metric 3: Trees equivalent */}
-        <div className="p-4 rounded-2xl bg-white/5 border border-white/10">
-          <div className="flex items-center gap-1.5 text-xs font-bold text-teal-300">
-            <Sparkles className="w-4 h-4 text-teal-400" />
-            <span>Urban Tree Equivalent</span>
+          <div className="mt-3 pt-3 border-t border-white/10 text-[11px] text-slate-400">
+            * If existing commute is walking, cycling, or mass transit, zero additional delta is
+            claimed.
           </div>
-          <div className="text-2xl sm:text-3xl font-black mt-2 text-white">
-            {metrics.equivalentTreesPlanted} <span className="text-xs font-normal text-slate-400">tree-days</span>
-          </div>
-          <p className="text-[11px] text-slate-300 mt-1">
-            Equated to mature tree absorption (~21.8 kg CO2/yr).
-          </p>
-        </div>
-
-        {/* Metric 4: Clean Air Hours Gained */}
-        <div className="p-4 rounded-2xl bg-white/5 border border-white/10">
-          <div className="flex items-center gap-1.5 text-xs font-bold text-amber-300">
-            <TrendingUp className="w-4 h-4 text-amber-400" />
-            <span>Clean Air Hours Gained</span>
-          </div>
-          <div className="text-2xl sm:text-3xl font-black mt-2 text-white">
-            +{metrics.cleanAirHoursGained} <span className="text-xs font-normal text-slate-400">hrs/day</span>
-          </div>
-          <p className="text-xs text-slate-300 mt-1">
-            Hours in safe air (&lt;15 µg/m³ WHO 2021 24-hr guideline; &lt;25 µg/m³ interim target).
-          </p>
         </div>
       </div>
 
-      <div className="mt-4 pt-3 border-t border-white/10 text-xs text-slate-400 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1">
-        <span>Scientific References: WHO Global Air Quality Guidelines (2021) • US-EPA AP-42 Emission Factors</span>
-        <span>Model Version 2.2 • All savings are mathematical exposure estimates</span>
+      {/* Transparent Calculation Assumptions Box */}
+      <div className="mt-6 p-4 rounded-2xl bg-black/30 border border-white/10 text-xs text-slate-300 space-y-2">
+        <div className="flex items-center gap-1.5 font-bold text-white">
+          <Info className="w-4 h-4 text-emerald-400 shrink-0" aria-hidden="true" />
+          <span>Active Calculation Assumptions & Scientific Benchmarks:</span>
+        </div>
+        <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-[11px] text-slate-300 pt-1">
+          <li>
+            • <strong>Resting Minute Ventilation:</strong> {ca.adultRestVentilationM3Hr} m³/hr (~10
+            L/min, EPA 2011)
+          </li>
+          <li>
+            • <strong>Exertion Minute Ventilation:</strong> {ca.adultExertionVentilationM3Hr} m³/hr
+            (~35 L/min, EPA 2011)
+          </li>
+          <li>
+            • <strong>N95 Respirator Fit:</strong> {ca.n95FiltrationEfficiencyPct}% (assumes
+            leak-free continuous perimeter seal)
+          </li>
+          <li>
+            • <strong>Baseline Commute Factor:</strong> {ca.baselineEmissionFactorKgKm} kg CO₂/km (
+            {ca.commuteMode})
+          </li>
+          <li>
+            • <strong>Mass Transit Factor:</strong> {ca.cleanTransitEmissionFactorKgKm} kg CO₂/km
+            (Electrified Metro/Bus)
+          </li>
+          <li>
+            • <strong>Round-Trip Distance:</strong> {ca.commuteDistanceKm * 2} km (
+            {ca.commuteDistanceKm} km one-way)
+          </li>
+        </ul>
+      </div>
+
+      <div className="mt-4 pt-3 border-t border-white/10 text-[11px] text-slate-400 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1">
+        <span>
+          Scientific References: US EPA Exposure Factors Handbook (2011) • US EPA AP-42 • UK DEFRA
+          (2023)
+        </span>
+        <span>All metrics are empirical mathematical models based on user inputs.</span>
       </div>
     </section>
   );
