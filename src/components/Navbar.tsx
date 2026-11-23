@@ -115,7 +115,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <Key className="w-3.5 h-3.5 text-emerald-600" />
               <span className="hidden sm:inline">
-                {hasCustomKey ? 'Gemini 1.5 Active' : 'Offline / Heuristic AI'}
+                {hasCustomKey ? 'Gemini Live AI' : 'Offline / Heuristic AI'}
               </span>
             </button>
           </div>

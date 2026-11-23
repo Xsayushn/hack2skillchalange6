@@ -23,6 +23,22 @@ export interface LiveAqiResult {
   timestamp: string;
 }
 
+// 15-minute in-memory cache to prevent duplicate network roundtrips and avoid rate limits
+const CACHE_TTL_MS = 15 * 60 * 1000;
+const aqiCache = new Map<string, { data: LiveAqiResult; timestamp: number }>();
+
+export function clearAqiCache(): void {
+  aqiCache.clear();
+}
+
+export function getCachedAqi(cityId: string): LiveAqiResult | null {
+  const cached = aqiCache.get(cityId);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+    return cached.data;
+  }
+  return null;
+}
+
 /**
  * Evaluates whether natural ventilation is biologically safe based on strict WHO & EPA standards:
  * - AQI <= 50 (Good): Safe
@@ -58,35 +74,62 @@ export function evaluateVentilationSafety(aqi: number, hourNum: number): { safe:
  * Fetches real air quality & meteorological telemetry concurrently via Promise.all
  * from Open-Meteo & Copernicus Atmosphere Monitoring Service (CAMS).
  * Uses city local timestamps from the API to guarantee timezone-accurate forecast slicing.
+ * Implements 15-minute in-memory caching and request abort timeout.
  */
-export async function fetchLiveAqi(city: CityCoordinates): Promise<LiveAqiResult> {
+export async function fetchLiveAqi(
+  city: CityCoordinates,
+  options?: { bypassCache?: boolean; timeoutMs?: number; signal?: AbortSignal }
+): Promise<LiveAqiResult> {
+  // Check in-memory cache first to eliminate duplicate requests
+  if (!options?.bypassCache) {
+    const cached = getCachedAqi(city.id);
+    if (cached) {
+      return cached;
+    }
+  }
+
   const aqiUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${city.lat}&longitude=${city.lon}&current=us_aqi,pm2_5,pm10,nitrogen_dioxide,ozone,carbon_monoxide,sulphur_dioxide&hourly=us_aqi,pm2_5&timezone=auto&forecast_days=2`;
   const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${city.lat}&longitude=${city.lon}&current=temperature_2m,relative_humidity_2m&timezone=auto`;
 
+  // Timeout controller to ensure network operations never hang
+  const timeoutMs = options?.timeoutMs ?? 8000;
+  const timeoutController = new AbortController();
+  const timer = setTimeout(() => timeoutController.abort(), timeoutMs);
+
   try {
+    const fetchSignal = options?.signal || timeoutController.signal;
+
     // Parallel fetch: Air quality and weather concurrently
     const [aqiRes, weatherRes] = await Promise.all([
-      fetch(aqiUrl),
-      fetch(weatherUrl).catch(() => null)
+      fetch(aqiUrl, { signal: fetchSignal }),
+      fetch(weatherUrl, { signal: fetchSignal }).catch(() => null)
     ]);
+
+    clearTimeout(timer);
 
     if (!aqiRes.ok) {
       throw new Error(`Open-Meteo CAMS API responded with HTTP ${aqiRes.status}`);
     }
 
     const aqiData = await aqiRes.json();
-    const current = aqiData.current;
-    const hourly = aqiData.hourly;
+    
+    // Runtime response validation
+    if (!aqiData || typeof aqiData !== 'object') {
+      throw new Error('Invalid JSON payload received from Open-Meteo API');
+    }
 
-    // Telemetry parsing
-    const currentAqi = Math.round(current?.us_aqi ?? 150);
+    const current = aqiData.current || {};
+    const hourly = aqiData.hourly || {};
+
+    // Telemetry parsing with strict range guards
+    const currentAqi = Math.max(0, Math.min(500, Math.round(Number(current.us_aqi) || 150)));
     const { category } = getAqiCategory(currentAqi);
-    const pm25 = Math.round(current?.pm2_5 ?? 60);
-    const pm10 = Math.round(current?.pm10 ?? 90);
-    const no2 = Math.round(current?.nitrogen_dioxide ?? 40);
-    const o3 = Math.round(current?.ozone ?? 30);
-    const co = Number(((current?.carbon_monoxide ?? 500) / 1000).toFixed(1));
-    const so2 = Math.round(current?.sulphur_dioxide ?? 10);
+    const pm25 = Math.max(0, Math.round(Number(current.pm2_5) || 60));
+    const pm10 = Math.max(0, Math.round(Number(current.pm10) || 90));
+    const no2 = Math.max(0, Math.round(Number(current.nitrogen_dioxide) || 40));
+    const o3 = Math.max(0, Math.round(Number(current.ozone) || 30));
+    const co = Math.max(0, Number(((Number(current.carbon_monoxide) || 500) / 1000).toFixed(1)));
+    const so2 = Math.max(0, Math.round(Number(current.sulphur_dioxide) || 10));
 
     // Weather telemetry parsing
     let temperatureC = 16;
@@ -106,7 +149,7 @@ export async function fetchLiveAqi(city: CityCoordinates): Promise<LiveAqiResult
     }
 
     // Timezone-accurate local hour from Open-Meteo's own local timestamp (e.g. "2026-11-23T14:15")
-    const localTimeStr: string = current?.time || '';
+    const localTimeStr: string = typeof current.time === 'string' ? current.time : '';
     const localHour = localTimeStr.includes('T') 
       ? parseInt(localTimeStr.split('T')[1].slice(0, 2), 10) 
       : new Date().getHours();
@@ -116,7 +159,7 @@ export async function fetchLiveAqi(city: CityCoordinates): Promise<LiveAqiResult
     // Dynamic timeline: Accurately locate the current/next upcoming hour in the local timeline
     // and grab 7 consecutive forecast hours
     const hourlyForecast: HourlyForecast[] = [];
-    if (hourly?.time && hourly?.us_aqi && hourly?.pm2_5) {
+    if (Array.isArray(hourly.time) && Array.isArray(hourly.us_aqi) && Array.isArray(hourly.pm2_5)) {
       // Find index matching or immediately following the city's local time
       const targetPrefix = localTimeStr.includes('T') ? localTimeStr.slice(0, 13) : '';
       let startIndex = targetPrefix ? hourly.time.findIndex((t: string) => t >= targetPrefix) : -1;
@@ -124,10 +167,10 @@ export async function fetchLiveAqi(city: CityCoordinates): Promise<LiveAqiResult
 
       // Extract consecutive upcoming hours
       for (let i = startIndex; i < hourly.time.length && hourlyForecast.length < 7; i++) {
-        const rawTime = hourly.time[i];
+        const rawTime = hourly.time[i] || '';
         const timeStr = rawTime.includes('T') ? rawTime.split('T')[1].slice(0, 5) : `${i}:00`;
-        const aqiVal = Math.round(hourly.us_aqi[i]);
-        const pmVal = Math.round(hourly.pm2_5[i]);
+        const aqiVal = Math.round(Number(hourly.us_aqi[i]) || currentAqi);
+        const pmVal = Math.round(Number(hourly.pm2_5[i]) || pm25);
         const hourNum = parseInt(timeStr.slice(0, 2), 10);
 
         const { safe: ventilationSafe, advice: recommendation } = evaluateVentilationSafety(aqiVal, hourNum);
@@ -163,17 +206,25 @@ export async function fetchLiveAqi(city: CityCoordinates): Promise<LiveAqiResult
         { hour: '08:00', aqi: Math.round(currentAqi * 1.15), pm25: Math.round(pm25 * 1.15), inversionRisk: 'High', ventilationSafe: false, recommendation: 'Morning cold inversion peak.' },
         { hour: '14:00', aqi: Math.round(currentAqi * 0.8), pm25: Math.round(pm25 * 0.8), inversionRisk: 'Low', ventilationSafe: currentAqi <= 100, recommendation: 'Solar mixing window.' },
         { hour: '20:00', aqi: currentAqi, pm25: pm25, inversionRisk: 'High', ventilationSafe: false, recommendation: 'Evening smog accumulation.' }
-      ]
+      ],
+      isLiveModel: true,
+      attribution: 'Open-Meteo & Copernicus CAMS atmospheric model'
     };
 
-    return {
+    const result: LiveAqiResult = {
       cityData,
       source: 'Open-Meteo CAMS Model',
       timestamp: localTimeStr.includes('T') 
         ? localTimeStr.split('T')[1].slice(0, 5) 
         : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
+
+    // Store in cache
+    aqiCache.set(city.id, { data: result, timestamp: Date.now() });
+
+    return result;
   } catch (err) {
+    clearTimeout(timer);
     console.warn(`Failed to fetch live AQI for ${city.name}, falling back to preset data:`, err);
     throw err;
   }

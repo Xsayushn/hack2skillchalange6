@@ -5,9 +5,13 @@ export default defineConfig({
   plugins: [react()],
   preview: {
     host: '0.0.0.0',
-    port: process.env.PORT ? parseInt(process.env.PORT) : 4173,
+    port: process.env.PORT ? parseInt(process.env.PORT, 10) : 4173,
     strictPort: false,
-    allowedHosts: true,
+    allowedHosts: ['hack2skillchalange6.onrender.com', '.onrender.com', 'localhost', '127.0.0.1'],
+  },
+  server: {
+    host: '0.0.0.0',
+    allowedHosts: ['hack2skillchalange6.onrender.com', '.onrender.com', 'localhost', '127.0.0.1'],
   },
   build: {
     target: 'es2020',

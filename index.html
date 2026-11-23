@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23059669'><path d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z'/></svg>" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' https:; img-src 'self' data: https:; connect-src 'self' https://generativelanguage.googleapis.com https://air-quality-api.open-meteo.com https://api.open-meteo.com;" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://generativelanguage.googleapis.com https://air-quality-api.open-meteo.com https://api.open-meteo.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self';" />
     <meta name="description" content="AeroGuardian: GenAI-powered assistant helping families navigate winter smog, optimize routines, reduce emissions, and safeguard indoor air." />
     <title>AeroGuardian | GenAI Urban Air Quality Assistant</title>
   </head>
@@ -12,10 +12,10 @@
     <noscript>
       <div role="alert" style="padding: 2rem; background: #064e3b; color: white; text-align: center; font-family: sans-serif;">
         <h1 style="font-size: 1.5rem; font-weight: bold; margin-bottom: 0.5rem;">AeroGuardian Air Quality Assistant</h1>
-        <p>AeroGuardian requires JavaScript to display real-time atmospheric model forecasts, calculate particulate dosages, and provide interactive GenAI air quality guidance. Please enable JavaScript in your browser settings to continue.</p>
+        <p>AeroGuardian requires JavaScript to display atmospheric model forecasts, calculate particulate dosages, and provide interactive GenAI air quality guidance. Please enable JavaScript in your browser settings to continue.</p>
       </div>
     </noscript>
-    <div id="root" role="application" aria-label="AeroGuardian Urban Air Quality Assistant"></div>
+    <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

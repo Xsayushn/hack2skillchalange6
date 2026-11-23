@@ -264,36 +264,36 @@ export const AqiHeroCard: React.FC<AqiHeroCardProps> = ({
                 <span className="text-xs font-bold text-slate-800">NO₂ (Vehicle Gas)</span>
               </div>
               <div className="text-2xl font-black text-slate-900 mt-1">
-                {city.pollutants.no2} <span className="text-xs font-normal text-slate-600">ppb</span>
+                {city.pollutants.no2} <span className="text-xs font-normal text-slate-600">µg/m³</span>
               </div>
-              <p className="text-[11px] text-slate-600 mt-1">Diesel and combustion exhaust</p>
+              <p className="text-xs text-slate-600 mt-1">Diesel and combustion exhaust</p>
             </div>
 
             {/* Ozone O3 */}
             <div className="p-3.5 rounded-2xl bg-slate-100 border border-slate-200">
               <span className="text-xs font-bold text-slate-800">O₃ (Ground Ozone)</span>
               <div className="text-2xl font-black text-slate-900 mt-1">
-                {city.pollutants.o3} <span className="text-xs font-normal text-slate-600">ppb</span>
+                {city.pollutants.o3} <span className="text-xs font-normal text-slate-600">µg/m³</span>
               </div>
-              <p className="text-[11px] text-slate-600 mt-1">Photochemical smog oxidant</p>
+              <p className="text-xs text-slate-600 mt-1">Photochemical smog oxidant</p>
             </div>
 
             {/* CO */}
             <div className="p-3.5 rounded-2xl bg-slate-100 border border-slate-200">
               <span className="text-xs font-bold text-slate-800">CO (Monoxide)</span>
               <div className="text-2xl font-black text-slate-900 mt-1">
-                {city.pollutants.co} <span className="text-xs font-normal text-slate-600">ppm</span>
+                {city.pollutants.co} <span className="text-xs font-normal text-slate-600">mg/m³</span>
               </div>
-              <p className="text-[11px] text-slate-600 mt-1">Incomplete fuel combustion</p>
+              <p className="text-xs text-slate-600 mt-1">Incomplete fuel combustion</p>
             </div>
 
             {/* SO2 */}
             <div className="p-3.5 rounded-2xl bg-slate-100 border border-slate-200">
               <span className="text-xs font-bold text-slate-800">SO₂ (Sulfur)</span>
               <div className="text-2xl font-black text-slate-900 mt-1">
-                {city.pollutants.so2} <span className="text-xs font-normal text-slate-600">ppb</span>
+                {city.pollutants.so2} <span className="text-xs font-normal text-slate-600">µg/m³</span>
               </div>
-              <p className="text-[11px] text-slate-600 mt-1">Industrial and coal emissions</p>
+              <p className="text-xs text-slate-600 mt-1">Industrial and coal emissions</p>
             </div>
           </div>
         </div>

@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Key, ShieldCheck, AlertCircle, X, ExternalLink } from 'lucide-react';
+import { Key, AlertCircle, X, ExternalLink, ShieldAlert } from 'lucide-react';
 import { maskApiKey, validateApiKey } from '../services/security';
 
 interface ApiKeyModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentKey: string;
-  onSaveKey: (key: string) => void;
+  onSaveKey: (key: string, isEphemeral?: boolean) => void;
 }
 
 export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
@@ -16,6 +16,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
   onSaveKey
 }) => {
   const [inputVal, setInputVal] = useState(currentKey);
+  const [isEphemeral, setIsEphemeral] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -79,22 +80,22 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
   const handleSave = () => {
     const trimmed = inputVal.trim();
     if (!trimmed) {
-      onSaveKey('');
+      onSaveKey('', false);
       onClose();
       return;
     }
     if (!validateApiKey(trimmed)) {
-      setError('Key appears invalid. A valid Gemini API key usually starts with "AIzaSy..."');
+      setError('Key appears invalid. A valid Gemini API key starts with "AIza..." and contains at least 35 characters.');
       return;
     }
     setError(null);
-    onSaveKey(trimmed);
+    onSaveKey(trimmed, isEphemeral);
     onClose();
   };
 
   const handleClear = () => {
     setInputVal('');
-    onSaveKey('');
+    onSaveKey('', false);
     setError(null);
   };
 
@@ -107,13 +108,13 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
     >
       <div 
         ref={modalRef}
-        className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200"
+        className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200"
       >
         <div className="flex items-center justify-between pb-4 border-b border-slate-100">
           <div className="flex items-center gap-2">
             <Key className="w-5 h-5 text-emerald-600" />
             <h2 id="modal-title" className="text-lg font-bold text-slate-800">
-              Gemini API Settings
+              Gemini API & Security Architecture
             </h2>
           </div>
           <button
@@ -126,18 +127,19 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
         </div>
 
         <div className="mt-4 space-y-4">
-          <p className="text-sm text-slate-600 leading-relaxed">
-            AeroGuardian includes a built-in <strong>Offline Heuristic Environmental Intelligence Engine</strong> that works out of the box with zero setup.
-          </p>
-          <p className="text-sm text-slate-600 leading-relaxed">
-            Optionally, connect your own <strong>Google Gemini API Key</strong> for live conversational reasoning (using header-authenticated `x-goog-api-key`).
+          <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+            AeroGuardian runs a zero-setup <strong>Offline Heuristic Environmental Intelligence Engine</strong> by default. You may optionally supply a Google Gemini API key for live conversational reasoning.
           </p>
 
-          <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 flex items-start gap-2 text-xs text-emerald-800">
-            <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-            <span>
-              <strong>Client-Side Isolated Storage:</strong> Stored strictly in your browser’s local storage and transmitted directly to Google’s API via HTTPS headers. Never sent to our servers.
-            </span>
+          {/* Security architecture banner */}
+          <div className="p-3 bg-amber-50/80 rounded-xl border border-amber-200 text-xs text-amber-900 space-y-1">
+            <div className="flex items-center gap-1.5 font-bold">
+              <ShieldAlert className="w-4 h-4 text-amber-700 shrink-0" />
+              <span>Production Security Architecture Advisory</span>
+            </div>
+            <p className="leading-relaxed">
+              Browser <code>localStorage</code> is vulnerable to client-side XSS. For prototype testing, use <strong>In-Memory Ephemeral Storage</strong> (cleared on tab close). For enterprise production, a server-side authenticated proxy should manage credentials.
+            </p>
           </div>
 
           <div>
@@ -154,7 +156,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
                 setInputVal(e.target.value);
                 if (error) setError(null);
               }}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono text-sm text-slate-800"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono text-xs sm:text-sm text-slate-800"
             />
             {currentKey && (
               <p className="text-xs text-slate-500 mt-1 font-mono">
@@ -169,7 +171,27 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
             )}
           </div>
 
-          <div className="pt-2">
+          {/* Ephemeral vs Persistent Storage Selector */}
+          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+            <label className="flex items-start gap-2.5 cursor-pointer text-xs text-slate-700">
+              <input
+                type="checkbox"
+                checked={isEphemeral}
+                onChange={(e) => setIsEphemeral(e.target.checked)}
+                className="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500"
+              />
+              <div>
+                <span className="font-semibold block text-slate-800">
+                  Ephemeral In-Memory Only (Recommended for Security)
+                </span>
+                <span className="text-slate-500 text-[11px] block mt-0.5">
+                  Keep key in browser memory only; do not persist to localStorage. Key will be cleared when the tab is closed.
+                </span>
+              </div>
+            </label>
+          </div>
+
+          <div className="flex items-center justify-between pt-1">
             <a
               href="https://aistudio.google.com/app/apikey"
               target="_blank"
@@ -178,18 +200,19 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
             >
               Get a free Google AI Studio Key <ExternalLink className="w-3 h-3" />
             </a>
+            <span className="text-[11px] text-slate-500">Transmitted via HTTP header <code>x-goog-api-key</code></span>
           </div>
         </div>
 
-        <div className="mt-6 flex items-center justify-between pt-4 border-t border-slate-100">
+        <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-slate-100">
           <button
             type="button"
             onClick={handleClear}
-            className="px-3 py-2 text-xs font-medium text-slate-600 hover:text-rose-600 transition-colors focus:outline-none focus:ring-2 focus:ring-rose-500 rounded-lg"
+            className="w-full sm:w-auto px-3 py-2 text-xs font-medium text-slate-600 hover:text-rose-600 transition-colors focus:outline-none focus:ring-2 focus:ring-rose-500 rounded-lg text-center"
           >
-            Clear Key (Use Offline Engine)
+            Clear Key (Offline Engine)
           </button>
-          <div className="flex gap-2">
+          <div className="flex gap-2 w-full sm:w-auto justify-end">
             <button
               type="button"
               onClick={onClose}

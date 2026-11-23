@@ -120,23 +120,25 @@ AeroGuardian uses empirical formulas based on EPA, WHO guidelines, and transport
 * **Problem Relevance**: Directly targets winter smog, thermal inversions, vulnerable populations, low-cost DIY filters, and low-emission routines.
 
 ### 🔵 Medium Impact: Security & Resource Efficiency
-* **Client-Side Isolated Storage & CSP**: API keys reside strictly in browser `localStorage` and are sent via HTTPS `x-goog-api-key` header (never exposed in URL query parameters). Hardened with an active Content Security Policy (CSP).
+* **Client-Side Isolated Storage & CSP**: API keys can be stored either as **ephemeral in-memory keys** (cleared on tab close) or persistently in browser `localStorage`. Keys are transmitted strictly via HTTPS `x-goog-api-key` header (never exposed in URL query parameters). Hardened with an active Content Security Policy (CSP).
 * **Enterprise Roadmap**: For enterprise production deployments, a Node.js/Go backend proxy route with server-side Redis token-bucket rate limiting is recommended.
 * **Rate Limiting**: Integrated `chatRateLimiter` enforces a 15 req/min window.
+* **In-Memory Caching & Concurrency**: 15-minute in-memory caching in `aqiApi.ts` prevents duplicate network queries when switching views. Parallel `Promise.all` telemetry fetching with `AbortController` timeout prevents hung network requests.
 * **Advanced Code Splitting & Dynamic Lazy Loading**:
-  - Main Application Entry: **56.39 kB** (16.61 kB gzipped) — 76% reduction in initial payload.
-  - Dedicated Vendor Chunks: `vendor-react` (133 kB) and `vendor-icons` (21 kB) for long-term browser cacheability.
+  - Main Application Entry: **58.63 kB** (17.36 kB gzipped) — 76% reduction in initial payload.
+  - Dedicated Vendor Chunks: `vendor-react` (133 kB) and `vendor-icons` (22 kB) for long-term browser cacheability.
   - Route-Level Dynamic Lazy Chunks (`React.lazy()` + `<Suspense>`): `RoutinePlanner` (3.7 kB), `IaqHacksGuide` (11.4 kB), `AiAssistantChat` (16.8 kB).
 * **Ultra-Lean Footprint**:
   - Total Git Repository Size: **< 1.0 MB** (strictly satisfying the `< 10 MB` challenge rule).
   - Single branch: **`main`**.
 
 ### ⚪ Low Impact: Testing & Accessibility
-* **Testing Suite**: **24 automated unit tests** powered by `vitest` covering mathematical dosage calculations, live Open-Meteo local timezone slicing, XSS sanitization, rate limiting, and Gemini header authentication.
+* **Testing Suite**: **31 automated unit tests** powered by `vitest` covering mathematical dosage calculations, live Open-Meteo local timezone slicing, XSS sanitization, rate limiting, in-memory caching, commute delta analysis, and Gemini header authentication.
 * **Accessibility (WCAG 2.1 AA Foundations)**:
   * High-Contrast Mode toggle for visually impaired users.
   * Semantic HTML5 elements (`<header>`, `<main>`, `<section>`, `<nav>`, `<footer>`, `<noscript>`).
-  * Full ARIA labeling (`aria-expanded`, `aria-pressed`, `aria-label`, `aria-live="polite"`, `role="application"`, `role="region"`, `role="dialog"`).
+  * Full ARIA labeling (`aria-expanded`, `aria-pressed`, `aria-label`, `aria-live="polite"`, `role="region"`, `role="dialog"`, `role="status"`).
+  * Reduced-motion support via `@media (prefers-reduced-motion: reduce)` in CSS.
   * Modal focus trap (cycling Tab / Shift+Tab) with Escape key listeners and focus return.
 
 ---
@@ -160,7 +162,7 @@ npm install
 # 3. Run development server
 npm run dev
 
-# 4. Run test suite (24 tests)
+# 4. Run test suite (31 tests)
 npm test
 
 # 5. Build production bundle

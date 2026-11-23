@@ -86,7 +86,7 @@ Ask me anything about:
                 AeroGuardian GenAI Reasoning Assistant
               </h2>
               <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
-                {apiKey ? 'Gemini 1.5 Live' : 'Heuristic AI Model'}
+                {apiKey ? 'Gemini 3.8 Flash Live' : 'Heuristic AI Model'}
               </span>
             </div>
             <p className="text-xs text-slate-500">

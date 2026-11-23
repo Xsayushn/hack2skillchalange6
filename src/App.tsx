@@ -172,9 +172,9 @@ export const App: React.FC = () => {
     );
   }, []);
 
-  const handleSaveApiKey = useCallback((key: string) => {
+  const handleSaveApiKey = useCallback((key: string, isEphemeral?: boolean) => {
     setApiKey(key);
-    if (key) {
+    if (key && !isEphemeral) {
       localStorage.setItem(STORAGE_KEY_APIKEY, key);
     } else {
       localStorage.removeItem(STORAGE_KEY_APIKEY);

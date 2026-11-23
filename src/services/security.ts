@@ -3,6 +3,17 @@
  * Provides prompt sanitization, rate limiting, and safe credential handling.
  */
 
+// Ephemeral in-memory key storage for prototype sessions (cleared on tab close)
+let ephemeralApiKey: string | null = null;
+
+export function setEphemeralApiKey(key: string | null): void {
+  ephemeralApiKey = key;
+}
+
+export function getEphemeralApiKey(): string | null {
+  return ephemeralApiKey;
+}
+
 /**
  * Sanitizes input text before passing to GenAI prompts:
  * - Trims excessive whitespace
@@ -49,6 +60,16 @@ export function validateApiKey(key: string): boolean {
   return trimmed.startsWith('AIza') && trimmed.length >= 35;
 }
 
+/**
+ * Client-Side Sliding Window Rate Limiter
+ * 
+ * Note on Limitations:
+ * Client-side rate limiters defend against rapid double-clicks, unintended infinite loops,
+ * and UI flooding. However, because they execute within the browser, they can be bypassed
+ * if an attacker modifies client code. In enterprise production systems, a backend proxy
+ * with a Redis-backed token bucket algorithm and authenticated API gateways should always
+ * be implemented to enforce authoritative rate limiting.
+ */
 export class SimpleRateLimiter {
   private timestamps: number[] = [];
   private limit: number;
@@ -61,7 +82,7 @@ export class SimpleRateLimiter {
 
   canProceed(): boolean {
     const now = Date.now();
-    this.timestamps = this.timestamps.filter(t => now - t < this.windowMs);
+    this.timestamps = this.timestamps.filter((t) => now - t < this.windowMs);
     if (this.timestamps.length >= this.limit) {
       return false;
     }
@@ -71,7 +92,7 @@ export class SimpleRateLimiter {
 
   getRemaining(): number {
     const now = Date.now();
-    this.timestamps = this.timestamps.filter(t => now - t < this.windowMs);
+    this.timestamps = this.timestamps.filter((t) => now - t < this.windowMs);
     return Math.max(0, this.limit - this.timestamps.length);
   }
 

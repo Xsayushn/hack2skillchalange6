@@ -1,27 +1,42 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { fetchLiveAqi, KNOWN_CITY_COORDINATES, evaluateVentilationSafety } from '../services/aqiApi';
+import {
+  fetchLiveAqi,
+  KNOWN_CITY_COORDINATES,
+  evaluateVentilationSafety,
+  clearAqiCache,
+  getCachedAqi
+} from '../services/aqiApi';
 
 describe('Live Open-Meteo Air Quality Service', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    clearAqiCache();
   });
 
   it('contains verified geographic coordinates for all core cities', () => {
     expect(KNOWN_CITY_COORDINATES.length).toBe(5);
-    const delhi = KNOWN_CITY_COORDINATES.find(c => c.id === 'delhi');
+    const delhi = KNOWN_CITY_COORDINATES.find((c) => c.id === 'delhi');
     expect(delhi?.lat).toBeCloseTo(28.61, 1);
     expect(delhi?.lon).toBeCloseTo(77.20, 1);
   });
 
   it('evaluates ventilation safety strictly according to WHO and EPA guidelines', () => {
-    // Good air (AQI 30): always safe
+    // Good air (AQI <= 50): always safe
     expect(evaluateVentilationSafety(30, 8).safe).toBe(true);
+    expect(evaluateVentilationSafety(50, 14).safe).toBe(true);
 
-    // Moderate air (AQI 80): safe in afternoon solar window (14:00), unsafe during morning inversion (8:00)
+    // Moderate air (AQI 51 - 100): safe in afternoon solar window (13-15), unsafe in morning/night
     expect(evaluateVentilationSafety(80, 14).safe).toBe(true);
     expect(evaluateVentilationSafety(80, 8).safe).toBe(false);
+    expect(evaluateVentilationSafety(100, 15).safe).toBe(true);
+    expect(evaluateVentilationSafety(100, 20).safe).toBe(false);
 
-    // Very Unhealthy air (AQI 220): strictly unsafe even during afternoon window
+    // Unhealthy for Sensitive (AQI 101 - 150): unsafe (marginal advice only)
+    expect(evaluateVentilationSafety(120, 14).safe).toBe(false);
+    expect(evaluateVentilationSafety(150, 8).safe).toBe(false);
+
+    // Very Unhealthy / Hazardous air (AQI > 150): strictly unsafe even during afternoon window
+    expect(evaluateVentilationSafety(151, 14).safe).toBe(false);
     expect(evaluateVentilationSafety(220, 14).safe).toBe(false);
     expect(evaluateVentilationSafety(350, 14).safe).toBe(false);
   });
@@ -120,10 +135,50 @@ describe('Live Open-Meteo Air Quality Service', () => {
     expect(result.cityData.hourlyForecast.length).toBeGreaterThanOrEqual(3);
   });
 
+  it('uses in-memory cache to prevent duplicate requests within TTL', async () => {
+    const mockApiResponse = {
+      current: { time: '2026-11-23T12:00', us_aqi: 110, pm2_5: 42 },
+      hourly: { time: ['2026-11-23T12:00'], us_aqi: [110], pm2_5: [42] }
+    };
+
+    const fetchSpy = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('air-quality')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => mockApiResponse
+        } as Response);
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ current: { temperature_2m: 20, relative_humidity_2m: 50 } })
+      } as Response);
+    });
+    global.fetch = fetchSpy;
+
+    const lahore = KNOWN_CITY_COORDINATES[1];
+    
+    // First call triggers network
+    const firstCall = await fetchLiveAqi(lahore);
+    expect(fetchSpy).toHaveBeenCalled();
+    const callCountAfterFirst = fetchSpy.mock.calls.length;
+
+    // Second call serves directly from cache without hitting network again
+    const secondCall = await fetchLiveAqi(lahore);
+    expect(fetchSpy.mock.calls.length).toBe(callCountAfterFirst);
+    expect(secondCall.cityData.currentAqi).toBe(firstCall.cityData.currentAqi);
+
+    // Cache lookup returns data
+    expect(getCachedAqi(lahore.id)).not.toBeNull();
+
+    // Cache clearing allows fresh fetch
+    clearAqiCache();
+    expect(getCachedAqi(lahore.id)).toBeNull();
+  });
+
   it('throws when network fails so callers can trigger offline fallback', async () => {
     global.fetch = vi.fn().mockRejectedValue(new Error('Network error'));
 
     const delhi = KNOWN_CITY_COORDINATES[0];
-    await expect(fetchLiveAqi(delhi)).rejects.toThrow('Network error');
+    await expect(fetchLiveAqi(delhi, { bypassCache: true })).rejects.toThrow('Network error');
   });
 });

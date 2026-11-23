@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { sanitizePrompt, sanitizeHtml, maskApiKey, validateApiKey, SimpleRateLimiter } from '../services/security';
+import {
+  sanitizePrompt,
+  sanitizeHtml,
+  maskApiKey,
+  validateApiKey,
+  SimpleRateLimiter,
+  setEphemeralApiKey,
+  getEphemeralApiKey
+} from '../services/security';
 
 describe('Security Utilities', () => {
   it('sanitizes prompt text without mutilating slashes or quotes', () => {
@@ -9,6 +17,13 @@ describe('Security Utilities', () => {
     expect(clean).toContain('/');
     expect(clean).not.toContain('\u0000');
     expect(clean).not.toContain('&#x2F;'); // Confirmed: no artificial HTML entity inside LLM prompt
+  });
+
+  it('enforces maximum character length limit on prompts', () => {
+    const longInput = 'A'.repeat(3000);
+    const sanitized = sanitizePrompt(longInput, 500);
+
+    expect(sanitized.length).toBe(500);
   });
 
   it('escapes HTML tags for safe DOM insertion when needed', () => {
@@ -40,5 +55,27 @@ describe('Security Utilities', () => {
     expect(limiter.canProceed()).toBe(true);
     expect(limiter.canProceed()).toBe(true);
     expect(limiter.canProceed()).toBe(false); // 4th blocked
+  });
+
+  it('resets rate limiter correctly', () => {
+    const limiter = new SimpleRateLimiter(2, 5000);
+    expect(limiter.canProceed()).toBe(true);
+    expect(limiter.canProceed()).toBe(true);
+    expect(limiter.canProceed()).toBe(false);
+
+    limiter.reset();
+    expect(limiter.canProceed()).toBe(true);
+    expect(limiter.getRemaining()).toBe(1);
+  });
+
+  it('stores and retrieves ephemeral session API key in memory', () => {
+    setEphemeralApiKey(null);
+    expect(getEphemeralApiKey()).toBeNull();
+
+    setEphemeralApiKey('AIzaSyTemporaryKey12345678901234567890123');
+    expect(getEphemeralApiKey()).toBe('AIzaSyTemporaryKey12345678901234567890123');
+
+    setEphemeralApiKey(null);
+    expect(getEphemeralApiKey()).toBeNull();
   });
 });

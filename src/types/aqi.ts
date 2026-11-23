@@ -7,12 +7,12 @@ export type AqiCategory =
   | 'Hazardous';
 
 export interface PollutantValues {
-  pm25: number;   // µg/m³
-  pm10: number;   // µg/m³
-  no2: number;    // ppb
-  o3: number;     // ppb
-  co: number;     // ppm
-  so2: number;    // ppb
+  pm25: number;   // µg/m³ (WHO 2021 Guideline: 15 µg/m³ 24-hr)
+  pm10: number;   // µg/m³ (WHO 2021 Guideline: 45 µg/m³ 24-hr)
+  no2: number;    // µg/m³ (WHO 2021 Guideline: 25 µg/m³ 24-hr)
+  o3: number;     // µg/m³ (WHO 2021 Guideline: 100 µg/m³ 8-hr peak)
+  co: number;     // mg/m³ (WHO 2021 Guideline: 4 mg/m³ 24-hr)
+  so2: number;    // µg/m³ (WHO 2021 Guideline: 40 µg/m³ 24-hr)
 }
 
 export interface HourlyForecast {
@@ -36,15 +36,21 @@ export interface CityData {
   inversionLayerActive: boolean;
   primarySmogSource: string;
   hourlyForecast: HourlyForecast[];
+  isLiveModel?: boolean;
+  isWeatherEstimated?: boolean;
+  attribution?: string;
+  lastUpdatedTime?: string;
 }
 
 export type VulnerabilityLevel = 'Infant/Child' | 'Elderly' | 'Respiratory/Asthma' | 'Pregnant' | 'Outdoor Worker' | 'General';
+
+export type CommuteMode = 'Private Car' | 'Carpool' | 'Metro/Bus' | 'EV/Electric' | 'Active (Bicycle/Walk)';
 
 export interface UserFamilyProfile {
   name: string;
   cityId: string;
   vulnerabilities: VulnerabilityLevel[];
-  dailyCommuteMode: 'Private Car' | 'Carpool' | 'Metro/Bus' | 'EV/Electric' | 'Active (Bicycle/Walk)';
+  dailyCommuteMode: CommuteMode;
   commuteDistanceKm: number;
   hasAirPurifier: boolean;
   homeType: 'Apartment' | 'Independent House';
@@ -54,7 +60,7 @@ export interface UserFamilyProfile {
 
 export interface RoutineItem {
   id: string;
-  timeSlot: string; // e.g., "07:00 - 08:30"
+  timeSlot: string; // e.g., "08:00 - 09:30"
   title: string;
   originalAction: string;
   ecoCleanAction: string;
