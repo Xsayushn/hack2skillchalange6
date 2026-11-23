@@ -1,20 +1,28 @@
 import React, { useState } from 'react';
 import { getAqiCategory, createCustomCity } from '../data/cityDefaults';
 import { CityData, HourlyForecast } from '../types/aqi';
-import { AlertTriangle, Droplets, Thermometer, Wind, Clock, PlusCircle } from 'lucide-react';
+import { AlertTriangle, Droplets, Thermometer, Wind, Clock, PlusCircle, RotateCw, MapPin } from 'lucide-react';
 
 interface AqiHeroCardProps {
   city: CityData;
   onCityChange: (cityId: string) => void;
   availableCities: CityData[];
   onAddCustomCity: (newCity: CityData) => void;
+  dataSourceLabel?: string;
+  isLiveLoading?: boolean;
+  onRefreshLive?: () => void;
+  onDetectLocation?: () => void;
 }
 
 export const AqiHeroCard: React.FC<AqiHeroCardProps> = ({
   city,
   onCityChange,
   availableCities,
-  onAddCustomCity
+  onAddCustomCity,
+  dataSourceLabel = 'Live Open-Meteo & CAMS Satellite',
+  isLiveLoading = false,
+  onRefreshLive,
+  onDetectLocation
 }) => {
   const [showCustomModal, setShowCustomModal] = useState(false);
   const [customName, setCustomName] = useState('');
@@ -45,16 +53,42 @@ export const AqiHeroCard: React.FC<AqiHeroCardProps> = ({
       {/* Top Header: City Selector & Status */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-100">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-rose-100 text-rose-800 border border-rose-200">
               <span className="w-2 h-2 rounded-full bg-rose-600 animate-ping"></span>
               Live Winter Smog Station
+            </span>
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-900 border border-emerald-300">
+              ● {dataSourceLabel}
             </span>
             {city.inversionLayerActive && (
               <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-900 border border-amber-300">
                 <AlertTriangle className="w-3 h-3 text-amber-700" />
                 Thermal Inversion Cap Active
               </span>
+            )}
+            {onRefreshLive && (
+              <button
+                type="button"
+                onClick={onRefreshLive}
+                disabled={isLiveLoading}
+                className="px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300 flex items-center gap-1 transition-all disabled:opacity-50"
+                title="Fetch latest sensor readings from Open-Meteo"
+              >
+                <RotateCw className={`w-3 h-3 ${isLiveLoading ? 'animate-spin text-emerald-600' : ''}`} />
+                <span>{isLiveLoading ? 'Fetching...' : 'Sync Sensor'}</span>
+              </button>
+            )}
+            {onDetectLocation && (
+              <button
+                type="button"
+                onClick={onDetectLocation}
+                className="px-2.5 py-1 rounded-full text-xs font-medium bg-cyan-50 text-cyan-800 hover:bg-cyan-100 border border-cyan-300 flex items-center gap-1 transition-all"
+                title="Detect air quality at your GPS location"
+              >
+                <MapPin className="w-3 h-3 text-cyan-600" />
+                <span>My Location</span>
+              </button>
             )}
           </div>
           <h1 className="text-2xl sm:text-3xl font-black text-slate-900 mt-2">

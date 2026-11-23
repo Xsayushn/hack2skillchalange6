@@ -33,5 +33,7 @@ dist-ssr
 
 # Temporary / Scratch files and prompt screenshots
 Screenshot*.png
+Recording*.mp4
+*.mp4
 scratch/
 coverage/

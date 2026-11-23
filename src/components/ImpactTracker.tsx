@@ -28,8 +28,8 @@ export const ImpactTracker: React.FC<ImpactTrackerProps> = ({ metrics }) => {
         <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-white/15">
           <Award className="w-6 h-6 text-yellow-400 animate-bounce" />
           <div>
-            <div className="text-xs text-slate-300 font-medium">Community Rank</div>
-            <div className="text-sm font-extrabold text-white">Top {100 - metrics.communityRankPercentile}% of Clean Citizens</div>
+            <div className="text-xs text-slate-300 font-medium">Community Impact Tier (Model Estimate)</div>
+            <div className="text-sm font-extrabold text-white">Top {100 - metrics.communityRankPercentile}% Clean Living Tier</div>
           </div>
         </div>
       </div>
@@ -46,7 +46,7 @@ export const ImpactTracker: React.FC<ImpactTrackerProps> = ({ metrics }) => {
             {metrics.totalPm25AvoidedUg.toLocaleString()} <span className="text-xs font-normal text-slate-400">µg</span>
           </div>
           <p className="text-[11px] text-slate-300 mt-1">
-            Kept out of delicate lung bronchioles and bloodstream.
+            Modeled via EPA minute ventilation (0.6 - 2.1 m³/hr) & N95 filtration.
           </p>
         </div>
 
@@ -60,7 +60,7 @@ export const ImpactTracker: React.FC<ImpactTrackerProps> = ({ metrics }) => {
             {metrics.totalCo2SavedKg} <span className="text-xs font-normal text-slate-400">kg</span>
           </div>
           <p className="text-[11px] text-slate-300 mt-1">
-            Tailpipe gases and burning smoke eliminated.
+            Based on EPA passenger car factor (0.192 kg CO2/km vs 0.038 kg metro).
           </p>
         </div>
 
@@ -74,7 +74,7 @@ export const ImpactTracker: React.FC<ImpactTrackerProps> = ({ metrics }) => {
             {metrics.equivalentTreesPlanted} <span className="text-xs font-normal text-slate-400">tree-days</span>
           </div>
           <p className="text-[11px] text-slate-300 mt-1">
-            Daily natural absorption capacity matched.
+            Equated to mature tree absorption (~21.8 kg CO2/yr).
           </p>
         </div>
 
@@ -88,9 +88,14 @@ export const ImpactTracker: React.FC<ImpactTrackerProps> = ({ metrics }) => {
             +{metrics.cleanAirHoursGained} <span className="text-xs font-normal text-slate-400">hrs/day</span>
           </div>
           <p className="text-[11px] text-slate-300 mt-1">
-            Hours living in safe PM2.5 baseline air (&lt;25 µg/m³).
+            Hours living in safe PM2.5 baseline air (&lt;25 µg/m³ WHO target).
           </p>
         </div>
+      </div>
+
+      <div className="mt-4 pt-3 border-t border-white/10 text-[11px] text-slate-400 flex items-center justify-between">
+        <span>Scientific References: WHO Global Air Quality Guidelines (2021) • US-EPA AP-42 Emission Factors</span>
+        <span>Model Version 2.1</span>
       </div>
     </section>
   );

@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { CITIES_DATA } from './data/cityDefaults';
 import { UserFamilyProfile, RoutineItem, UserImpactMetrics, CityData } from './types/aqi';
 import { AssistantContext } from './types/assistant';
 import { generateDailyRoutines, computeOverallImpact } from './services/impactCalculator';
+import { fetchLiveAqi, KNOWN_CITY_COORDINATES } from './services/aqiApi';
 import { Navbar } from './components/Navbar';
 import { ApiKeyModal } from './components/ApiKeyModal';
 import { AqiHeroCard } from './components/AqiHeroCard';
@@ -19,6 +20,8 @@ const STORAGE_KEY_CONTRAST = 'aeroguardian_contrast';
 export const App: React.FC = () => {
   const [citiesList, setCitiesList] = useState<CityData[]>(CITIES_DATA);
   const [selectedCityId, setSelectedCityId] = useState<string>('delhi');
+  const [dataSourceLabel, setDataSourceLabel] = useState<string>('Live Open-Meteo Sensor');
+  const [isLiveLoading, setIsLiveLoading] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'routines' | 'iaq' | 'chat'>('dashboard');
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState<boolean>(false);
   const [apiKey, setApiKey] = useState<string>(() => localStorage.getItem(STORAGE_KEY_APIKEY) || '');
@@ -48,9 +51,64 @@ export const App: React.FC = () => {
 
   const currentCity = citiesList.find((c) => c.id === selectedCityId) || citiesList[0];
 
+  const loadLiveAqi = useCallback(async (cityId: string) => {
+    const coords = KNOWN_CITY_COORDINATES.find((c) => c.id === cityId);
+    if (!coords) return;
+    setIsLiveLoading(true);
+    try {
+      const result = await fetchLiveAqi(coords);
+      setCitiesList((prev) =>
+        prev.map((c) => (c.id === cityId ? result.cityData : c))
+      );
+      setDataSourceLabel(`Live CAMS / Open-Meteo (${result.timestamp})`);
+    } catch {
+      setDataSourceLabel('Offline Backup Model');
+    } finally {
+      setIsLiveLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadLiveAqi(selectedCityId);
+  }, [selectedCityId, loadLiveAqi]);
+
+  const handleDetectLocation = () => {
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported by your browser.');
+      return;
+    }
+    setIsLiveLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const userCoords = {
+            id: 'my-location',
+            name: 'Local GPS Sensor',
+            country: 'Live Geo',
+            lat: pos.coords.latitude,
+            lon: pos.coords.longitude
+          };
+          const res = await fetchLiveAqi(userCoords);
+          setCitiesList((prev) => [res.cityData, ...prev.filter((c) => c.id !== 'my-location')]);
+          setSelectedCityId(res.cityData.id);
+          setDataSourceLabel(`GPS Live (${res.timestamp})`);
+        } catch {
+          alert('Could not fetch air quality for your exact GPS coordinates.');
+        } finally {
+          setIsLiveLoading(false);
+        }
+      },
+      () => {
+        setIsLiveLoading(false);
+        alert('Location access denied. Please select a city from the list.');
+      }
+    );
+  };
+
   const handleAddCustomCity = (newCity: CityData) => {
     setCitiesList((prev) => [newCity, ...prev]);
     setSelectedCityId(newCity.id);
+    setDataSourceLabel('Custom User Station');
   };
 
   const [routines, setRoutines] = useState<RoutineItem[]>(() => {
@@ -157,6 +215,10 @@ export const App: React.FC = () => {
               onCityChange={(id) => setSelectedCityId(id)}
               availableCities={citiesList}
               onAddCustomCity={handleAddCustomCity}
+              dataSourceLabel={dataSourceLabel}
+              isLiveLoading={isLiveLoading}
+              onRefreshLive={() => loadLiveAqi(selectedCityId)}
+              onDetectLocation={handleDetectLocation}
             />
 
             <ProfileSelector

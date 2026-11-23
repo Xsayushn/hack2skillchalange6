@@ -1,14 +1,22 @@
 import { describe, it, expect } from 'vitest';
-import { sanitizeInput, maskApiKey, validateApiKey, SimpleRateLimiter } from '../services/security';
+import { sanitizePrompt, sanitizeHtml, maskApiKey, validateApiKey, SimpleRateLimiter } from '../services/security';
 
 describe('Security Utilities', () => {
-  it('sanitizes malicious script and HTML inputs to prevent XSS', () => {
-    const malicious = '<script>alert("hacked")</script><img src=x onerror=alert(1)>';
-    const clean = sanitizeInput(malicious);
+  it('sanitizes prompt text without mutilating slashes or quotes', () => {
+    const raw = 'How do I clean PM2.5 / PM10 in 1/2 hour? \u0000\u0007';
+    const clean = sanitizePrompt(raw);
 
-    expect(clean).not.toContain('<script>');
-    expect(clean).toContain('&lt;script&gt;');
-    expect(clean).toContain('&lt;img');
+    expect(clean).toContain('/');
+    expect(clean).not.toContain('\u0000');
+    expect(clean).not.toContain('&#x2F;'); // Confirmed: no artificial HTML entity inside LLM prompt
+  });
+
+  it('escapes HTML tags for safe DOM insertion when needed', () => {
+    const malicious = '<script>alert("xss")</script>';
+    const escaped = sanitizeHtml(malicious);
+
+    expect(escaped).not.toContain('<script>');
+    expect(escaped).toContain('&lt;script&gt;');
   });
 
   it('masks API keys securely showing only prefix and suffix', () => {

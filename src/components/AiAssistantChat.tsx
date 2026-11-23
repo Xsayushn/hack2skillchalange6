@@ -186,7 +186,11 @@ Ask me anything about:
           }}
           className="flex items-center gap-2"
         >
+          <label htmlFor="chat-user-input" className="sr-only">
+            Ask AeroGuardian about air quality, smog hacks, or routine advice
+          </label>
           <input
+            id="chat-user-input"
             type="text"
             value={inputVal}
             onChange={(e) => setInputVal(e.target.value)}
@@ -196,8 +200,8 @@ Ask me anything about:
           <button
             type="submit"
             disabled={!inputVal.trim() || isLoading}
-            className="px-5 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold flex items-center gap-1.5 shadow-md shadow-emerald-600/20 disabled:opacity-50"
-            aria-label="Send Message"
+            className="px-5 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold flex items-center gap-1.5 shadow-md shadow-emerald-600/20 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            aria-label="Send Message to AeroGuardian"
           >
             <span>Ask AI</span>
             <Send className="w-4 h-4" />

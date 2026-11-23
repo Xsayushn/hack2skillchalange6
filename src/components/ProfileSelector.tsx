@@ -82,7 +82,7 @@ export const ProfileSelector: React.FC<ProfileSelectorProps> = ({ profile, onCha
             <select
               id="commute-mode-select"
               value={profile.dailyCommuteMode}
-              onChange={(e) => onChange({ ...profile, dailyCommuteMode: e.target.value as any })}
+              onChange={(e) => onChange({ ...profile, dailyCommuteMode: e.target.value as UserFamilyProfile['dailyCommuteMode'] })}
               className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 font-semibold text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
             >
               <option value="Private Car">Private Car (Petrol / Diesel Solo)</option>
