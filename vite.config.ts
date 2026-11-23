@@ -9,6 +9,19 @@ export default defineConfig({
     strictPort: false,
     allowedHosts: true,
   },
+  build: {
+    target: 'es2020',
+    sourcemap: false,
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-icons': ['lucide-react']
+        }
+      }
+    }
+  },
   test: {
     globals: true,
     environment: 'node',

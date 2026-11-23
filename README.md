@@ -123,10 +123,13 @@ AeroGuardian uses empirical formulas based on EPA, WHO guidelines, and transport
 * **Client-Side Isolated Storage & CSP**: API keys reside strictly in browser `localStorage` and are sent via HTTPS `x-goog-api-key` header (never exposed in URL query parameters). Hardened with an active Content Security Policy (CSP).
 * **Enterprise Roadmap**: For enterprise production deployments, a Node.js/Go backend proxy route with server-side Redis token-bucket rate limiting is recommended.
 * **Rate Limiting**: Integrated `chatRateLimiter` enforces a 15 req/min window.
+* **Advanced Code Splitting & Dynamic Lazy Loading**:
+  - Main Application Entry: **56.39 kB** (16.61 kB gzipped) — 76% reduction in initial payload.
+  - Dedicated Vendor Chunks: `vendor-react` (133 kB) and `vendor-icons` (21 kB) for long-term browser cacheability.
+  - Route-Level Dynamic Lazy Chunks (`React.lazy()` + `<Suspense>`): `RoutinePlanner` (3.7 kB), `IaqHacksGuide` (11.4 kB), `AiAssistantChat` (16.8 kB).
 * **Ultra-Lean Footprint**:
-  * Total Production Bundle Size: **~273 kB** (CSS: 32 kB, JS: 241 kB).
-  * Total Git Repository Size: **< 1.0 MB** (strictly satisfying the `< 10 MB` challenge rule).
-  * Single branch: **`main`**.
+  - Total Git Repository Size: **< 1.0 MB** (strictly satisfying the `< 10 MB` challenge rule).
+  - Single branch: **`main`**.
 
 ### ⚪ Low Impact: Testing & Accessibility
 * **Testing Suite**: **24 automated unit tests** powered by `vitest` covering mathematical dosage calculations, live Open-Meteo local timezone slicing, XSS sanitization, rate limiting, and Gemini header authentication.

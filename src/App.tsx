@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, Suspense, lazy } from 'react';
 import { CITIES_DATA } from './data/cityDefaults';
 import { UserFamilyProfile, RoutineItem, UserImpactMetrics, CityData } from './types/aqi';
 import { AssistantContext } from './types/assistant';
@@ -8,14 +8,30 @@ import { Navbar } from './components/Navbar';
 import { ApiKeyModal } from './components/ApiKeyModal';
 import { AqiHeroCard } from './components/AqiHeroCard';
 import { ProfileSelector } from './components/ProfileSelector';
-import { RoutinePlanner } from './components/RoutinePlanner';
-import { IaqHacksGuide } from './components/IaqHacksGuide';
 import { ImpactTracker } from './components/ImpactTracker';
-import { AiAssistantChat } from './components/AiAssistantChat';
+import { RefreshCw } from 'lucide-react';
+
+// Code splitting & lazy-loaded route tabs for optimal performance and minimal initial bundle size
+const RoutinePlanner = lazy(() =>
+  import('./components/RoutinePlanner').then((m) => ({ default: m.RoutinePlanner }))
+);
+const IaqHacksGuide = lazy(() =>
+  import('./components/IaqHacksGuide').then((m) => ({ default: m.IaqHacksGuide }))
+);
+const AiAssistantChat = lazy(() =>
+  import('./components/AiAssistantChat').then((m) => ({ default: m.AiAssistantChat }))
+);
 
 const STORAGE_KEY_PROFILE = 'aeroguardian_profile';
 const STORAGE_KEY_APIKEY = 'aeroguardian_gemini_key';
 const STORAGE_KEY_CONTRAST = 'aeroguardian_contrast';
+
+const TabLoadingFallback: React.FC = () => (
+  <div className="p-12 text-center flex flex-col items-center justify-center gap-3 bg-white rounded-3xl border border-slate-200 shadow-sm" role="status" aria-live="polite">
+    <RefreshCw className="w-6 h-6 animate-spin text-emerald-600" />
+    <span className="text-sm font-medium text-slate-600">Loading module...</span>
+  </div>
+);
 
 export const App: React.FC = () => {
   const [citiesList, setCitiesList] = useState<CityData[]>(CITIES_DATA);
@@ -49,7 +65,9 @@ export const App: React.FC = () => {
     };
   });
 
-  const currentCity = citiesList.find((c) => c.id === selectedCityId) || citiesList[0];
+  const currentCity = useMemo(() => {
+    return citiesList.find((c) => c.id === selectedCityId) || citiesList[0];
+  }, [citiesList, selectedCityId]);
 
   const loadLiveAqi = useCallback(async (cityId: string) => {
     const coords = KNOWN_CITY_COORDINATES.find((c) => c.id === cityId);
@@ -72,7 +90,7 @@ export const App: React.FC = () => {
     loadLiveAqi(selectedCityId);
   }, [selectedCityId, loadLiveAqi]);
 
-  const handleDetectLocation = () => {
+  const handleDetectLocation = useCallback(() => {
     if (!navigator.geolocation) {
       alert('Geolocation is not supported by your browser.');
       return;
@@ -103,13 +121,13 @@ export const App: React.FC = () => {
         alert('Location access denied. Please select a city from the list.');
       }
     );
-  };
+  }, []);
 
-  const handleAddCustomCity = (newCity: CityData) => {
+  const handleAddCustomCity = useCallback((newCity: CityData) => {
     setCitiesList((prev) => [newCity, ...prev]);
     setSelectedCityId(newCity.id);
     setDataSourceLabel('User Custom Estimate');
-  };
+  }, []);
 
   const [routines, setRoutines] = useState<RoutineItem[]>(() => {
     return generateDailyRoutines(familyProfile, currentCity.currentAqi, currentCity.pollutants.pm25);
@@ -148,33 +166,48 @@ export const App: React.FC = () => {
     localStorage.setItem(STORAGE_KEY_CONTRAST, String(highContrast));
   }, [highContrast]);
 
-  const handleToggleRoutine = (routineId: string) => {
+  const handleToggleRoutine = useCallback((routineId: string) => {
     setRoutines((prev) =>
       prev.map((r) => (r.id === routineId ? { ...r, isAdopted: !r.isAdopted } : r))
     );
-  };
+  }, []);
 
-  const handleSaveApiKey = (key: string) => {
+  const handleSaveApiKey = useCallback((key: string) => {
     setApiKey(key);
     if (key) {
       localStorage.setItem(STORAGE_KEY_APIKEY, key);
     } else {
       localStorage.removeItem(STORAGE_KEY_APIKEY);
     }
-  };
+  }, []);
 
-  const impactMetrics: UserImpactMetrics = computeOverallImpact(routines, familyProfile);
+  // Memoized impact metrics to eliminate redundant calculations
+  const impactMetrics: UserImpactMetrics = useMemo(() => {
+    return computeOverallImpact(routines, familyProfile);
+  }, [routines, familyProfile]);
 
-  const assistantContext: AssistantContext = {
-    cityName: currentCity.name,
-    currentAqi: currentCity.currentAqi,
-    aqiCategory: currentCity.category,
-    pm25: currentCity.pollutants.pm25,
-    inversionLayerActive: currentCity.inversionLayerActive,
-    vulnerabilities: familyProfile.vulnerabilities,
-    hasPurifier: familyProfile.hasAirPurifier,
-    commuteMode: familyProfile.dailyCommuteMode
-  };
+  // Memoized assistant context
+  const assistantContext: AssistantContext = useMemo(() => {
+    return {
+      cityName: currentCity.name,
+      currentAqi: currentCity.currentAqi,
+      aqiCategory: currentCity.category,
+      pm25: currentCity.pollutants.pm25,
+      inversionLayerActive: currentCity.inversionLayerActive,
+      vulnerabilities: familyProfile.vulnerabilities,
+      hasPurifier: familyProfile.hasAirPurifier,
+      commuteMode: familyProfile.dailyCommuteMode
+    };
+  }, [
+    currentCity.name,
+    currentCity.currentAqi,
+    currentCity.category,
+    currentCity.pollutants.pm25,
+    currentCity.inversionLayerActive,
+    familyProfile.vulnerabilities,
+    familyProfile.hasAirPurifier,
+    familyProfile.dailyCommuteMode
+  ]);
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
@@ -192,7 +225,7 @@ export const App: React.FC = () => {
         <div className="bg-gradient-to-r from-emerald-800 to-teal-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
           <div>
             <span className="text-xs font-bold uppercase tracking-widest text-emerald-300 bg-emerald-950/60 px-3 py-1 rounded-full border border-emerald-700/50">
-              Winter Smog & Urban Air Quality Command
+              Winter Smog &amp; Urban Air Quality Command
             </span>
             <h1 className="text-3xl sm:text-4xl font-black mt-2 tracking-tight">
               AeroGuardian Assistant
@@ -236,32 +269,38 @@ export const App: React.FC = () => {
           </div>
         )}
 
-        {/* Tab 2: Routines & Impact */}
+        {/* Tab 2: Routines & Impact (Lazy-loaded with Suspense) */}
         {activeTab === 'routines' && (
-          <div className="space-y-8 animate-fadeIn">
-            <ImpactTracker metrics={impactMetrics} />
-            <RoutinePlanner
-              routines={routines}
-              onToggleRoutine={handleToggleRoutine}
-            />
-          </div>
+          <Suspense fallback={<TabLoadingFallback />}>
+            <div className="space-y-8 animate-fadeIn">
+              <ImpactTracker metrics={impactMetrics} />
+              <RoutinePlanner
+                routines={routines}
+                onToggleRoutine={handleToggleRoutine}
+              />
+            </div>
+          </Suspense>
         )}
 
-        {/* Tab 3: Indoor Air Hacks */}
+        {/* Tab 3: Indoor Air Hacks (Lazy-loaded with Suspense) */}
         {activeTab === 'iaq' && (
-          <div className="space-y-8 animate-fadeIn">
-            <IaqHacksGuide />
-          </div>
+          <Suspense fallback={<TabLoadingFallback />}>
+            <div className="space-y-8 animate-fadeIn">
+              <IaqHacksGuide />
+            </div>
+          </Suspense>
         )}
 
-        {/* Tab 4: GenAI Assistant */}
+        {/* Tab 4: GenAI Assistant (Lazy-loaded with Suspense) */}
         {activeTab === 'chat' && (
-          <div className="space-y-8 animate-fadeIn">
-            <AiAssistantChat
-              context={assistantContext}
-              apiKey={apiKey}
-            />
-          </div>
+          <Suspense fallback={<TabLoadingFallback />}>
+            <div className="space-y-8 animate-fadeIn">
+              <AiAssistantChat
+                context={assistantContext}
+                apiKey={apiKey}
+              />
+            </div>
+          </Suspense>
         )}
       </main>
 
@@ -272,9 +311,9 @@ export const App: React.FC = () => {
             <strong>AeroGuardian</strong> — GenAI Urban Air Quality Assistant (Challenge 6)
           </div>
           <div className="flex items-center gap-4">
-            <span>WCAG 2.1 AA Compliant</span>
+            <span>WCAG 2.1 AA Foundations</span>
             <span>•</span>
-            <span>WHO & US-EPA Air Quality Standards</span>
+            <span>WHO &amp; US-EPA Air Quality Standards</span>
             <span>•</span>
             <span>Single Branch (main)</span>
           </div>
