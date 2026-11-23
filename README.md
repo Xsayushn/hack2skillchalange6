@@ -69,7 +69,7 @@ AeroGuardian uses empirical formulas based on EPA, WHO guidelines, and transport
         ┌───────────────────────┴───────────────────────┐
         ▼                                               ▼
 ┌───────────────────────────────┐       ┌───────────────────────────────┐
-│   Offline Heuristic AI Engine │       │    Google Gemini 2.5 Flash    │
+│   Offline Heuristic AI Engine │       │    Google Gemini 3.8 Flash    │
 │  (Instant, Rule-Based, Zero   │  OR   │ (Live Contextual Reasoning    │
 │    Configuration, No Leak)    │       │  via Secure Header Auth)      │
 └───────────────────────────────┘       └───────────────────────────────┘
@@ -86,7 +86,7 @@ AeroGuardian uses empirical formulas based on EPA, WHO guidelines, and transport
 
 ### Key Modules:
 1. **Live AQI Hero & Diurnal Timeline (`AqiHeroCard.tsx` & `aqiApi.ts`)**:
-   Connects concurrently to **Open-Meteo & Copernicus Atmosphere Monitoring Service (CAMS)** for real-time model telemetry via `Promise.all()`, with dynamic hour slicing and GPS geolocation detection.
+   Connects concurrently to **Open-Meteo & Copernicus Atmosphere Monitoring Service (CAMS)** for real-time model telemetry via `Promise.all()`, with dynamic local-hour slicing and GPS geolocation detection.
 2. **Indoor Air Quality (IAQ) Hacks Guide (`IaqHacksGuide.tsx`)**:
    Step-by-step DIY instructions for building the **Corsi-Rosenthal box** (4 MERV-13 filters + 20-inch box fan + cardboard shroud), draft sealing, wet microfiber dusting, and kitchen range hood protocols.
 3. **Daily Routine Optimizer (`RoutinePlanner.tsx`)**:
@@ -95,7 +95,7 @@ AeroGuardian uses empirical formulas based on EPA, WHO guidelines, and transport
    Displays community rank percentile (model estimate), tree-absorption equivalents, clean air hours gained, and total $PM_{2.5}$ saved.
 5. **Dual-Mode GenAI Assistant (`AiAssistantChat.tsx` & `geminiService.ts`)**:
    * **Mode 1 (Default)**: Offline Heuristic Reasoning Engine with immediate responses and contextual suggested exploration pills.
-   * **Mode 2 (Live Gemini 2.5 Flash)**: Configurable Google Gemini 2.5 Flash integration with multi-turn conversation memory, transmitted securely via HTTP headers (`x-goog-api-key`) with client-side rate limiting.
+   * **Mode 2 (Live Gemini 3.8 Flash)**: Configurable Google Gemini 3.8 Flash integration with multi-turn conversation memory, transmitted securely via HTTP headers (`x-goog-api-key`) with client-side rate limiting.
 
 ---
 
@@ -120,21 +120,21 @@ AeroGuardian uses empirical formulas based on EPA, WHO guidelines, and transport
 * **Problem Relevance**: Directly targets winter smog, thermal inversions, vulnerable populations, low-cost DIY filters, and low-emission routines.
 
 ### 🔵 Medium Impact: Security & Resource Efficiency
-* **Client-Side Isolated Storage**: API keys reside strictly in browser `localStorage` and are sent via HTTPS `x-goog-api-key` header (never exposed in URL query parameters).
+* **Client-Side Isolated Storage & CSP**: API keys reside strictly in browser `localStorage` and are sent via HTTPS `x-goog-api-key` header (never exposed in URL query parameters). Hardened with an active Content Security Policy (CSP).
 * **Enterprise Roadmap**: For enterprise production deployments, a Node.js/Go backend proxy route with server-side Redis token-bucket rate limiting is recommended.
 * **Rate Limiting**: Integrated `chatRateLimiter` enforces a 15 req/min window.
 * **Ultra-Lean Footprint**:
-  * Total Production Bundle Size: **~272 kB** (CSS: 32 kB, JS: 240 kB).
+  * Total Production Bundle Size: **~273 kB** (CSS: 32 kB, JS: 241 kB).
   * Total Git Repository Size: **< 1.0 MB** (strictly satisfying the `< 10 MB` challenge rule).
   * Single branch: **`main`**.
 
 ### ⚪ Low Impact: Testing & Accessibility
-* **Testing Suite**: **23 automated unit tests** powered by `vitest` covering mathematical dosage calculations, live Open-Meteo API parsing, XSS sanitization, rate limiting, and Gemini header authentication.
+* **Testing Suite**: **24 automated unit tests** powered by `vitest` covering mathematical dosage calculations, live Open-Meteo local timezone slicing, XSS sanitization, rate limiting, and Gemini header authentication.
 * **Accessibility (WCAG 2.1 AA Foundations)**:
   * High-Contrast Mode toggle for visually impaired users.
-  * Semantic HTML5 elements (`<header>`, `<main>`, `<section>`, `<nav>`, `<footer>`).
-  * Full ARIA labeling (`aria-expanded`, `aria-pressed`, `aria-label`, `aria-live="polite"`, `role="region"`, `role="dialog"`).
-  * Modal focus management with Escape key listeners and focus return.
+  * Semantic HTML5 elements (`<header>`, `<main>`, `<section>`, `<nav>`, `<footer>`, `<noscript>`).
+  * Full ARIA labeling (`aria-expanded`, `aria-pressed`, `aria-label`, `aria-live="polite"`, `role="application"`, `role="region"`, `role="dialog"`).
+  * Modal focus trap (cycling Tab / Shift+Tab) with Escape key listeners and focus return.
 
 ---
 
@@ -157,7 +157,7 @@ npm install
 # 3. Run development server
 npm run dev
 
-# 4. Run test suite (23 tests)
+# 4. Run test suite (24 tests)
 npm test
 
 # 5. Build production bundle

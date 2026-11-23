@@ -26,9 +26,59 @@ describe('Live Open-Meteo Air Quality Service', () => {
     expect(evaluateVentilationSafety(350, 14).safe).toBe(false);
   });
 
+  it('accurately locates current local hour and extracts consecutive forecast hours', async () => {
+    const mockApiResponse = {
+      current: {
+        time: '2026-11-23T14:00',
+        us_aqi: 95,
+        pm2_5: 35,
+        pm10: 55,
+        nitrogen_dioxide: 28,
+        ozone: 45,
+        carbon_monoxide: 600,
+        sulphur_dioxide: 8
+      },
+      hourly: {
+        time: [
+          '2026-11-23T10:00',
+          '2026-11-23T12:00',
+          '2026-11-23T14:00',
+          '2026-11-23T15:00',
+          '2026-11-23T16:00',
+          '2026-11-23T17:00'
+        ],
+        us_aqi: [140, 120, 95, 90, 110, 130],
+        pm2_5: [55, 45, 35, 32, 40, 50]
+      }
+    };
+
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('air-quality')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => mockApiResponse
+        } as Response);
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ current: { temperature_2m: 19, relative_humidity_2m: 55 } })
+      } as Response);
+    });
+
+    const delhi = KNOWN_CITY_COORDINATES[0];
+    const result = await fetchLiveAqi(delhi);
+
+    // Must start at local time 14:00, not past 10:00 or 12:00
+    expect(result.cityData.hourlyForecast.length).toBeGreaterThanOrEqual(4);
+    expect(result.cityData.hourlyForecast[0].hour).toBe('14:00');
+    expect(result.cityData.hourlyForecast[1].hour).toBe('15:00');
+    expect(result.cityData.hourlyForecast[2].hour).toBe('16:00');
+  });
+
   it('correctly maps live Open-Meteo JSON into structured CityData via parallel fetch', async () => {
     const mockApiResponse = {
       current: {
+        time: '2026-11-23T06:00',
         us_aqi: 285,
         pm2_5: 215,
         pm10: 310,
@@ -38,9 +88,9 @@ describe('Live Open-Meteo Air Quality Service', () => {
         sulphur_dioxide: 16
       },
       hourly: {
-        time: ['2026-11-23T06:00', '2026-11-23T14:00', '2026-11-23T20:00'],
-        us_aqi: [320, 180, 290],
-        pm2_5: [260, 120, 230]
+        time: ['2026-11-23T06:00', '2026-11-23T07:00', '2026-11-23T08:00', '2026-11-23T09:00'],
+        us_aqi: [285, 300, 310, 290],
+        pm2_5: [215, 230, 240, 220]
       }
     };
 
@@ -67,7 +117,7 @@ describe('Live Open-Meteo Air Quality Service', () => {
     expect(result.cityData.pollutants.co).toBe(1.8); // 1800 / 1000
     expect(result.cityData.temperatureC).toBe(17);
     expect(result.cityData.humidityPct).toBe(65);
-    expect(result.cityData.hourlyForecast.length).toBeGreaterThanOrEqual(1);
+    expect(result.cityData.hourlyForecast.length).toBeGreaterThanOrEqual(3);
   });
 
   it('throws when network fails so callers can trigger offline fallback', async () => {

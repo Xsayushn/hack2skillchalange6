@@ -17,6 +17,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
 }) => {
   const [inputVal, setInputVal] = useState(currentKey);
   const [error, setError] = useState<string | null>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const previousActiveElement = useRef<HTMLElement | null>(null);
   const onCloseRef = useRef(onClose);
@@ -26,7 +27,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
     onCloseRef.current = onClose;
   }, [onClose]);
 
-  // Focus and input initialization ONLY when isOpen changes
+  // Focus trap, Escape handling, and focus restoration
   useEffect(() => {
     if (isOpen) {
       previousActiveElement.current = document.activeElement as HTMLElement;
@@ -37,6 +38,30 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
       const handleKeyDown = (e: KeyboardEvent) => {
         if (e.key === 'Escape') {
           onCloseRef.current();
+          return;
+        }
+
+        // Focus trap logic
+        if (e.key === 'Tab' && modalRef.current) {
+          const focusable = modalRef.current.querySelectorAll<HTMLElement>(
+            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+          );
+          if (focusable.length === 0) return;
+
+          const first = focusable[0];
+          const last = focusable[focusable.length - 1];
+
+          if (e.shiftKey) {
+            if (document.activeElement === first) {
+              e.preventDefault();
+              last.focus();
+            }
+          } else {
+            if (document.activeElement === last) {
+              e.preventDefault();
+              first.focus();
+            }
+          }
         }
       };
       window.addEventListener('keydown', handleKeyDown);
@@ -80,7 +105,10 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
       aria-modal="true" 
       aria-labelledby="modal-title"
     >
-      <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
+      <div 
+        ref={modalRef}
+        className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200"
+      >
         <div className="flex items-center justify-between pb-4 border-b border-slate-100">
           <div className="flex items-center gap-2">
             <Key className="w-5 h-5 text-emerald-600" />

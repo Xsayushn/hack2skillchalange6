@@ -66,7 +66,7 @@ describe('Gemini and Heuristic Reasoning Engine', () => {
 
     expect(result.content).toBe('Live AI response generated.');
     expect(result.impactHighlight?.label).toBe('Live AI Active');
-    expect(result.impactHighlight?.value).toContain('gemini-2.5-flash');
+    expect(result.impactHighlight?.value).toContain('gemini-3.8-flash');
     
     // Verify header was passed
     expect(fetchMock).toHaveBeenCalled();

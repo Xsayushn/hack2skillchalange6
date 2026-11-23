@@ -1,8 +1,8 @@
 import { AssistantContext, ChatMessage } from '../types/assistant';
 import { sanitizePrompt, chatRateLimiter } from './security';
 
-// Configurable Gemini Model ID (defaults to gemini-2.5-flash with fallback support)
-export const GEMINI_MODEL_ID = 'gemini-2.5-flash';
+// Configurable Gemini Model ID (active production model: gemini-3.8-flash)
+export const GEMINI_MODEL_ID = 'gemini-3.8-flash';
 const GEMINI_API_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL_ID}:generateContent`;
 
 /**

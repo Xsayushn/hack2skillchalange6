@@ -38,7 +38,7 @@ export function evaluateVentilationSafety(aqi: number, hourNum: number): { safe:
   }
   if (aqi <= 100) {
     if (isSolarConvectiveWindow) {
-      return { safe: true, advice: 'Solar mixing lifts boundary layer. Safe for 20-30m aeration.' };
+      return { safe: true, advice: 'Solar convective mixing lifts boundary layer. Safe for 20-30m aeration.' };
     }
     return { safe: false, advice: 'Morning/evening ground cooling traps moderate particulates. Postpone airing to midday.' };
   }
@@ -57,10 +57,11 @@ export function evaluateVentilationSafety(aqi: number, hourNum: number): { safe:
 /**
  * Fetches real air quality & meteorological telemetry concurrently via Promise.all
  * from Open-Meteo & Copernicus Atmosphere Monitoring Service (CAMS).
+ * Uses city local timestamps from the API to guarantee timezone-accurate forecast slicing.
  */
 export async function fetchLiveAqi(city: CityCoordinates): Promise<LiveAqiResult> {
   const aqiUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${city.lat}&longitude=${city.lon}&current=us_aqi,pm2_5,pm10,nitrogen_dioxide,ozone,carbon_monoxide,sulphur_dioxide&hourly=us_aqi,pm2_5&timezone=auto&forecast_days=2`;
-  const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${city.lat}&longitude=${city.lon}&current=temperature_2m,relative_humidity_2m`;
+  const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${city.lat}&longitude=${city.lon}&current=temperature_2m,relative_humidity_2m&timezone=auto`;
 
   try {
     // Parallel fetch: Air quality and weather concurrently
@@ -87,7 +88,7 @@ export async function fetchLiveAqi(city: CityCoordinates): Promise<LiveAqiResult
     const co = Number(((current?.carbon_monoxide ?? 500) / 1000).toFixed(1));
     const so2 = Math.round(current?.sulphur_dioxide ?? 10);
 
-    // Weather parsing
+    // Weather telemetry parsing
     let temperatureC = 16;
     let humidityPct = 65;
     if (weatherRes && weatherRes.ok) {
@@ -100,20 +101,29 @@ export async function fetchLiveAqi(city: CityCoordinates): Promise<LiveAqiResult
           humidityPct = Math.round(wData.current.relative_humidity_2m);
         }
       } catch {
-        // Use defaults if weather json parse fails
+        // Fallback to estimated regional defaults
       }
     }
 
-    const isInversion = currentAqi > 200 || (pm25 > 100 && (new Date().getHours() < 10 || new Date().getHours() > 18));
+    // Timezone-accurate local hour from Open-Meteo's own local timestamp (e.g. "2026-11-23T14:15")
+    const localTimeStr: string = current?.time || '';
+    const localHour = localTimeStr.includes('T') 
+      ? parseInt(localTimeStr.split('T')[1].slice(0, 2), 10) 
+      : new Date().getHours();
 
-    // Dynamic timeline: Slice the NEXT 7 upcoming forecast hours from the current time
+    const isInversion = currentAqi > 200 || (pm25 > 100 && (localHour < 10 || localHour > 18));
+
+    // Dynamic timeline: Accurately locate the current/next upcoming hour in the local timeline
+    // and grab 7 consecutive forecast hours
     const hourlyForecast: HourlyForecast[] = [];
     if (hourly?.time && hourly?.us_aqi && hourly?.pm2_5) {
-      const nowIso = new Date().toISOString().slice(0, 13); // "YYYY-MM-DDTHH"
-      let startIndex = hourly.time.findIndex((t: string) => t.startsWith(nowIso));
+      // Find index matching or immediately following the city's local time
+      const targetPrefix = localTimeStr.includes('T') ? localTimeStr.slice(0, 13) : '';
+      let startIndex = targetPrefix ? hourly.time.findIndex((t: string) => t >= targetPrefix) : -1;
       if (startIndex === -1) startIndex = 0;
 
-      for (let i = startIndex; i < hourly.time.length && hourlyForecast.length < 7; i += 2) {
+      // Extract consecutive upcoming hours
+      for (let i = startIndex; i < hourly.time.length && hourlyForecast.length < 7; i++) {
         const rawTime = hourly.time[i];
         const timeStr = rawTime.includes('T') ? rawTime.split('T')[1].slice(0, 5) : `${i}:00`;
         const aqiVal = Math.round(hourly.us_aqi[i]);
@@ -159,7 +169,9 @@ export async function fetchLiveAqi(city: CityCoordinates): Promise<LiveAqiResult
     return {
       cityData,
       source: 'Open-Meteo CAMS Model',
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      timestamp: localTimeStr.includes('T') 
+        ? localTimeStr.split('T')[1].slice(0, 5) 
+        : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
   } catch (err) {
     console.warn(`Failed to fetch live AQI for ${city.name}, falling back to preset data:`, err);
