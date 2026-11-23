@@ -18,10 +18,12 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
   const [inputVal, setInputVal] = useState(currentKey);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const previousActiveElement = useRef<HTMLElement | null>(null);
 
-  // Auto-focus input and handle Escape key
+  // Auto-focus input, handle Escape key, and return focus upon modal close
   useEffect(() => {
     if (isOpen) {
+      previousActiveElement.current = document.activeElement as HTMLElement;
       setInputVal(currentKey);
       setError(null);
       setTimeout(() => inputRef.current?.focus(), 50);
@@ -32,7 +34,10 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
         }
       };
       window.addEventListener('keydown', handleKeyDown);
-      return () => window.removeEventListener('keydown', handleKeyDown);
+      return () => {
+        window.removeEventListener('keydown', handleKeyDown);
+        previousActiveElement.current?.focus?.();
+      };
     }
   }, [isOpen, currentKey, onClose]);
 

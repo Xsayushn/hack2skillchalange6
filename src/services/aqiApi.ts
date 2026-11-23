@@ -78,6 +78,25 @@ export async function fetchLiveAqi(city: CityCoordinates): Promise<LiveAqiResult
 
     const pollutants: PollutantValues = { pm25, pm10, no2, o3, co, so2 };
 
+    // Fetch live ground weather telemetry (temperature & relative humidity)
+    let temperatureC = 16;
+    let humidityPct = 65;
+    try {
+      const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${city.lat}&longitude=${city.lon}&current=temperature_2m,relative_humidity_2m`;
+      const wRes = await fetch(weatherUrl);
+      if (wRes.ok) {
+        const wData = await wRes.json();
+        if (typeof wData.current?.temperature_2m === 'number') {
+          temperatureC = Math.round(wData.current.temperature_2m);
+        }
+        if (typeof wData.current?.relative_humidity_2m === 'number') {
+          humidityPct = Math.round(wData.current.relative_humidity_2m);
+        }
+      }
+    } catch {
+      // Fallback to seasonal winter regional averages if weather telemetry times out
+    }
+
     const cityData: CityData = {
       id: city.id,
       name: city.name,
@@ -85,12 +104,12 @@ export async function fetchLiveAqi(city: CityCoordinates): Promise<LiveAqiResult
       currentAqi,
       category,
       pollutants,
-      temperatureC: 16,
-      humidityPct: 72,
+      temperatureC,
+      humidityPct,
       inversionLayerActive: isInversion,
       primarySmogSource: isInversion
-        ? 'Real-time thermal inversion trapping local vehicular exhaust and particulate'
-        : 'Ambient urban dispersion with moderate background aerosol levels',
+        ? 'Meteorological thermal inversion trapping ground aerosol particulates & exhaust'
+        : 'Ambient regional dispersion with moderate background particulate levels',
       hourlyForecast: hourlyForecast.length > 0 ? hourlyForecast : [
         { hour: '06:00', aqi: Math.round(currentAqi * 1.2), pm25: Math.round(pm25 * 1.2), inversionRisk: 'High', ventilationSafe: false, recommendation: 'Morning peak smog.' },
         { hour: '14:00', aqi: Math.round(currentAqi * 0.75), pm25: Math.round(pm25 * 0.75), inversionRisk: 'Low', ventilationSafe: true, recommendation: 'Solar mixing window.' },

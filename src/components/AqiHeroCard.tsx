@@ -135,8 +135,11 @@ export const AqiHeroCard: React.FC<AqiHeroCardProps> = ({
       {showCustomModal && (
         <form onSubmit={handleCreateCustom} className="mt-4 p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200 flex flex-col sm:flex-row items-center gap-3 text-xs">
           <div className="flex-1 w-full">
-            <label className="block text-[11px] font-bold text-emerald-900 mb-1">City / Neighborhood Name:</label>
+            <label htmlFor="custom-city-name-input" className="block text-xs font-bold text-emerald-900 mb-1">
+              City / Neighborhood Name:
+            </label>
             <input
+              id="custom-city-name-input"
               type="text"
               required
               placeholder="e.g. Kanpur, New York, Patna, London..."
@@ -146,8 +149,11 @@ export const AqiHeroCard: React.FC<AqiHeroCardProps> = ({
             />
           </div>
           <div className="w-full sm:w-48">
-            <label className="block text-[11px] font-bold text-emerald-900 mb-1">Current AQI ({customAqi}):</label>
+            <label htmlFor="custom-city-aqi-slider" className="block text-xs font-bold text-emerald-900 mb-1">
+              Current AQI ({customAqi}):
+            </label>
             <input
+              id="custom-city-aqi-slider"
               type="range"
               min="10"
               max="500"

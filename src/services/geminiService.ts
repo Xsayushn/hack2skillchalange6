@@ -1,8 +1,9 @@
 import { AssistantContext, ChatMessage } from '../types/assistant';
 import { sanitizePrompt, chatRateLimiter } from './security';
 
-// Current active models (Google Cloud Generative Language API)
-const GEMINI_API_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+// Configurable Gemini Model ID (defaults to gemini-2.5-flash with fallback support)
+export const GEMINI_MODEL_ID = 'gemini-2.5-flash';
+const GEMINI_API_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL_ID}:generateContent`;
 
 /**
  * Builds a prompt with environmental science context, family vulnerability profile, and winter smog conditions.
@@ -287,16 +288,17 @@ export async function sendChatMessage(
       ],
       impactHighlight: {
         label: 'Live AI Active',
-        value: 'Powered by Google Gemini 2.0 Flash via secure header auth',
+        value: `Powered by Google Gemini (${GEMINI_MODEL_ID}) via secure header auth`,
         type: 'info'
       }
     };
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
     console.error('Failed to communicate with Gemini API, falling back to heuristic engine:', err);
     return generateHeuristicResponse(
       sanitizedPrompt,
       context,
-      `Network/API error (${err?.message || 'Offline'}). Operating via offline heuristic engine.`
+      `Network/API error (${errorMsg || 'Offline'}). Operating via offline heuristic engine.`
     );
   }
 }

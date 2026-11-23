@@ -31,10 +31,18 @@ describe('Live Open-Meteo Air Quality Service', () => {
       }
     };
 
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => mockApiResponse
-    } as Response);
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('air-quality')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => mockApiResponse
+        } as Response);
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ current: { temperature_2m: 17, relative_humidity_2m: 65 } })
+      } as Response);
+    });
 
     const delhi = KNOWN_CITY_COORDINATES[0];
     const result = await fetchLiveAqi(delhi);
@@ -44,6 +52,8 @@ describe('Live Open-Meteo Air Quality Service', () => {
     expect(result.cityData.category).toBe('Very Unhealthy');
     expect(result.cityData.pollutants.pm25).toBe(215);
     expect(result.cityData.pollutants.co).toBe(1.8); // 1800 / 1000
+    expect(result.cityData.temperatureC).toBe(17);
+    expect(result.cityData.humidityPct).toBe(65);
     expect(result.cityData.hourlyForecast.length).toBeGreaterThanOrEqual(3);
   });
 

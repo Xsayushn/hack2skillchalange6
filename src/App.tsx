@@ -115,7 +115,7 @@ export const App: React.FC = () => {
     return generateDailyRoutines(familyProfile, currentCity.currentAqi, currentCity.pollutants.pm25);
   });
 
-  // Re-generate routines when city or profile commute changes
+  // Re-generate routines when city, live sensor pollutants, or profile commute changes
   useEffect(() => {
     setRoutines((prevRoutines) => {
       const fresh = generateDailyRoutines(familyProfile, currentCity.currentAqi, currentCity.pollutants.pm25);
@@ -125,7 +125,13 @@ export const App: React.FC = () => {
         return found ? { ...r, isAdopted: found.isAdopted } : r;
       });
     });
-  }, [selectedCityId, familyProfile.commuteDistanceKm, familyProfile.dailyCommuteMode]);
+  }, [
+    selectedCityId,
+    currentCity.currentAqi,
+    currentCity.pollutants.pm25,
+    familyProfile.commuteDistanceKm,
+    familyProfile.dailyCommuteMode
+  ]);
 
   // Persist profile
   useEffect(() => {

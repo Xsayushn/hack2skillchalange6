@@ -8,7 +8,11 @@ interface ImpactTrackerProps {
 
 export const ImpactTracker: React.FC<ImpactTrackerProps> = ({ metrics }) => {
   return (
-    <section className="bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-950 rounded-3xl p-6 sm:p-8 text-white shadow-xl card-surface">
+    <section 
+      className="bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-950 rounded-3xl p-6 sm:p-8 text-white shadow-xl card-surface"
+      role="region"
+      aria-label="Household Environmental Impact and Health Exposure Savings Tracker"
+    >
       <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-white/10 gap-3">
         <div>
           <div className="flex items-center gap-2">
