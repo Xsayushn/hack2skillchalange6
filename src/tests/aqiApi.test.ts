@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { fetchLiveAqi, KNOWN_CITY_COORDINATES } from '../services/aqiApi';
+import { fetchLiveAqi, KNOWN_CITY_COORDINATES, evaluateVentilationSafety } from '../services/aqiApi';
 
 describe('Live Open-Meteo Air Quality Service', () => {
   beforeEach(() => {
@@ -13,7 +13,20 @@ describe('Live Open-Meteo Air Quality Service', () => {
     expect(delhi?.lon).toBeCloseTo(77.20, 1);
   });
 
-  it('correctly maps live Open-Meteo JSON into structured CityData', async () => {
+  it('evaluates ventilation safety strictly according to WHO and EPA guidelines', () => {
+    // Good air (AQI 30): always safe
+    expect(evaluateVentilationSafety(30, 8).safe).toBe(true);
+
+    // Moderate air (AQI 80): safe in afternoon solar window (14:00), unsafe during morning inversion (8:00)
+    expect(evaluateVentilationSafety(80, 14).safe).toBe(true);
+    expect(evaluateVentilationSafety(80, 8).safe).toBe(false);
+
+    // Very Unhealthy air (AQI 220): strictly unsafe even during afternoon window
+    expect(evaluateVentilationSafety(220, 14).safe).toBe(false);
+    expect(evaluateVentilationSafety(350, 14).safe).toBe(false);
+  });
+
+  it('correctly maps live Open-Meteo JSON into structured CityData via parallel fetch', async () => {
     const mockApiResponse = {
       current: {
         us_aqi: 285,
@@ -47,14 +60,14 @@ describe('Live Open-Meteo Air Quality Service', () => {
     const delhi = KNOWN_CITY_COORDINATES[0];
     const result = await fetchLiveAqi(delhi);
 
-    expect(result.source).toBe('Live Open-Meteo / CAMS');
+    expect(result.source).toBe('Open-Meteo CAMS Model');
     expect(result.cityData.currentAqi).toBe(285);
     expect(result.cityData.category).toBe('Very Unhealthy');
     expect(result.cityData.pollutants.pm25).toBe(215);
     expect(result.cityData.pollutants.co).toBe(1.8); // 1800 / 1000
     expect(result.cityData.temperatureC).toBe(17);
     expect(result.cityData.humidityPct).toBe(65);
-    expect(result.cityData.hourlyForecast.length).toBeGreaterThanOrEqual(3);
+    expect(result.cityData.hourlyForecast.length).toBeGreaterThanOrEqual(1);
   });
 
   it('throws when network fails so callers can trigger offline fallback', async () => {

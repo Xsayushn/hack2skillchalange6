@@ -56,7 +56,7 @@ export const AqiHeroCard: React.FC<AqiHeroCardProps> = ({
           <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-rose-100 text-rose-800 border border-rose-200">
               <span className="w-2 h-2 rounded-full bg-rose-600 animate-ping"></span>
-              Live Winter Smog Station
+              Live Model-Based AQI Station
             </span>
             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-900 border border-emerald-300">
               ● {dataSourceLabel}
@@ -64,7 +64,7 @@ export const AqiHeroCard: React.FC<AqiHeroCardProps> = ({
             {city.inversionLayerActive && (
               <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-900 border border-amber-300">
                 <AlertTriangle className="w-3 h-3 text-amber-700" />
-                Thermal Inversion Cap Active
+                Estimated Thermal Inversion Risk
               </span>
             )}
             {onRefreshLive && (
@@ -73,10 +73,10 @@ export const AqiHeroCard: React.FC<AqiHeroCardProps> = ({
                 onClick={onRefreshLive}
                 disabled={isLiveLoading}
                 className="px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300 flex items-center gap-1 transition-all disabled:opacity-50"
-                title="Fetch latest sensor readings from Open-Meteo"
+                title="Fetch latest forecast telemetry from Open-Meteo & CAMS"
               >
                 <RotateCw className={`w-3 h-3 ${isLiveLoading ? 'animate-spin text-emerald-600' : ''}`} />
-                <span>{isLiveLoading ? 'Fetching...' : 'Sync Sensor'}</span>
+                <span>{isLiveLoading ? 'Syncing...' : 'Sync CAMS Data'}</span>
               </button>
             )}
             {onDetectLocation && (
@@ -84,10 +84,10 @@ export const AqiHeroCard: React.FC<AqiHeroCardProps> = ({
                 type="button"
                 onClick={onDetectLocation}
                 className="px-2.5 py-1 rounded-full text-xs font-medium bg-cyan-50 text-cyan-800 hover:bg-cyan-100 border border-cyan-300 flex items-center gap-1 transition-all"
-                title="Detect air quality at your GPS location"
+                title="Estimate air quality at your GPS location"
               >
                 <MapPin className="w-3 h-3 text-cyan-600" />
-                <span>My Location</span>
+                <span>Location Estimate</span>
               </button>
             )}
           </div>
@@ -338,7 +338,7 @@ export const AqiHeroCard: React.FC<AqiHeroCardProps> = ({
                 <div className="text-[11px] text-slate-500">{hourData.pm25} µg/m³ PM2.5</div>
               </div>
 
-              <div className={`text-[10px] font-semibold py-1 px-1.5 rounded text-center ${
+              <div className={`text-xs font-semibold py-1 px-1.5 rounded text-center ${
                 hourData.ventilationSafe 
                   ? 'bg-emerald-600 text-white font-bold' 
                   : 'bg-slate-200 text-slate-700'
@@ -347,6 +347,11 @@ export const AqiHeroCard: React.FC<AqiHeroCardProps> = ({
               </div>
             </div>
           ))}
+        </div>
+
+        <div className="mt-4 pt-3 border-t border-slate-100 text-xs text-slate-500 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+          <span>Atmospheric forecast model telemetry provided by European Copernicus (CAMS) &amp; Open-Meteo.</span>
+          <span>US-EPA AQI Benchmark (24-hr standard)</span>
         </div>
       </div>
     </section>

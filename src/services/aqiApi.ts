@@ -19,27 +19,65 @@ export const KNOWN_CITY_COORDINATES: CityCoordinates[] = [
 
 export interface LiveAqiResult {
   cityData: CityData;
-  source: 'Live Open-Meteo / CAMS' | 'Offline Backup Preset';
+  source: 'Open-Meteo CAMS Model' | 'Offline Backup Preset';
   timestamp: string;
 }
 
 /**
- * Fetches real, live air quality data from the free, public Open-Meteo Air Quality API.
- * Uses European Copernicus Atmosphere Monitoring Service (CAMS) & global ground stations.
- * Zero API key required, CORS-enabled, 100% public.
+ * Evaluates whether natural ventilation is biologically safe based on strict WHO & EPA standards:
+ * - AQI <= 50 (Good): Safe
+ * - AQI 51 - 100 (Moderate): Safe during afternoon solar convective mixing (13:00 - 15:30)
+ * - AQI 101 - 150 (Sensitive Groups): Only brief 10m aeration permitted; sensitive members isolated
+ * - AQI > 150 (Unhealthy / Hazardous): UNSAFE. Windows strictly locked; rely on indoor filtration.
+ */
+export function evaluateVentilationSafety(aqi: number, hourNum: number): { safe: boolean; advice: string } {
+  const isSolarConvectiveWindow = hourNum >= 13 && hourNum <= 15;
+
+  if (aqi <= 50) {
+    return { safe: true, advice: 'Clean ambient air. Safe for natural cross-ventilation.' };
+  }
+  if (aqi <= 100) {
+    if (isSolarConvectiveWindow) {
+      return { safe: true, advice: 'Solar mixing lifts boundary layer. Safe for 20-30m aeration.' };
+    }
+    return { safe: false, advice: 'Morning/evening ground cooling traps moderate particulates. Postpone airing to midday.' };
+  }
+  if (aqi <= 150) {
+    if (isSolarConvectiveWindow) {
+      return { safe: false, advice: 'Marginal solar window. Brief 10m aeration only if indoor CO2 is high; sensitive individuals stay in filtered room.' };
+    }
+    return { safe: false, advice: 'Stagnant boundary air. Keep windows closed.' };
+  }
+  return {
+    safe: false,
+    advice: 'Severe smog alert. Unsafe to ventilate. Keep windows sealed; run Corsi-Rosenthal / HEPA air cleaners.'
+  };
+}
+
+/**
+ * Fetches real air quality & meteorological telemetry concurrently via Promise.all
+ * from Open-Meteo & Copernicus Atmosphere Monitoring Service (CAMS).
  */
 export async function fetchLiveAqi(city: CityCoordinates): Promise<LiveAqiResult> {
-  const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${city.lat}&longitude=${city.lon}&current=us_aqi,pm2_5,pm10,nitrogen_dioxide,ozone,carbon_monoxide,sulphur_dioxide&hourly=us_aqi,pm2_5&timezone=auto&forecast_days=1`;
+  const aqiUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${city.lat}&longitude=${city.lon}&current=us_aqi,pm2_5,pm10,nitrogen_dioxide,ozone,carbon_monoxide,sulphur_dioxide&hourly=us_aqi,pm2_5&timezone=auto&forecast_days=2`;
+  const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${city.lat}&longitude=${city.lon}&current=temperature_2m,relative_humidity_2m`;
 
   try {
-    const res = await fetch(url);
-    if (!res.ok) {
-      throw new Error(`Open-Meteo API responded with status ${res.status}`);
-    }
-    const data = await res.json();
-    const current = data.current;
-    const hourly = data.hourly;
+    // Parallel fetch: Air quality and weather concurrently
+    const [aqiRes, weatherRes] = await Promise.all([
+      fetch(aqiUrl),
+      fetch(weatherUrl).catch(() => null)
+    ]);
 
+    if (!aqiRes.ok) {
+      throw new Error(`Open-Meteo CAMS API responded with HTTP ${aqiRes.status}`);
+    }
+
+    const aqiData = await aqiRes.json();
+    const current = aqiData.current;
+    const hourly = aqiData.hourly;
+
+    // Telemetry parsing
     const currentAqi = Math.round(current?.us_aqi ?? 150);
     const { category } = getAqiCategory(currentAqi);
     const pm25 = Math.round(current?.pm2_5 ?? 60);
@@ -49,53 +87,54 @@ export async function fetchLiveAqi(city: CityCoordinates): Promise<LiveAqiResult
     const co = Number(((current?.carbon_monoxide ?? 500) / 1000).toFixed(1));
     const so2 = Math.round(current?.sulphur_dioxide ?? 10);
 
-    const isInversion = currentAqi > 200 || (pm25 > 100 && new Date().getHours() < 10);
-
-    // Build 5-7 hour timeline from hourly predictions
-    const hourlyForecast: HourlyForecast[] = [];
-    if (hourly?.time && hourly?.us_aqi && hourly?.pm2_5) {
-      const step = Math.max(1, Math.floor(hourly.time.length / 7));
-      for (let i = 0; i < hourly.time.length && hourlyForecast.length < 7; i += step) {
-        const timeStr = hourly.time[i].split('T')[1]?.slice(0, 5) || `${i}:00`;
-        const aqiVal = Math.round(hourly.us_aqi[i]);
-        const pmVal = Math.round(hourly.pm2_5[i]);
-        const hourNum = parseInt(timeStr.slice(0, 2), 10);
-        const isSolarWindow = hourNum >= 13 && hourNum <= 15;
-        const invRisk = aqiVal > 300 ? 'High' : aqiVal > 150 ? 'Medium' : 'Low';
-
-        hourlyForecast.push({
-          hour: timeStr,
-          aqi: aqiVal,
-          pm25: pmVal,
-          inversionRisk: invRisk,
-          ventilationSafe: isSolarWindow && aqiVal < 300,
-          recommendation: isSolarWindow
-            ? 'Midday solar mixing lifts inversion boundary layer.'
-            : 'Stagnant thermal boundary layer. Keep windows sealed.'
-        });
-      }
-    }
-
-    const pollutants: PollutantValues = { pm25, pm10, no2, o3, co, so2 };
-
-    // Fetch live ground weather telemetry (temperature & relative humidity)
+    // Weather parsing
     let temperatureC = 16;
     let humidityPct = 65;
-    try {
-      const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${city.lat}&longitude=${city.lon}&current=temperature_2m,relative_humidity_2m`;
-      const wRes = await fetch(weatherUrl);
-      if (wRes.ok) {
-        const wData = await wRes.json();
+    if (weatherRes && weatherRes.ok) {
+      try {
+        const wData = await weatherRes.json();
         if (typeof wData.current?.temperature_2m === 'number') {
           temperatureC = Math.round(wData.current.temperature_2m);
         }
         if (typeof wData.current?.relative_humidity_2m === 'number') {
           humidityPct = Math.round(wData.current.relative_humidity_2m);
         }
+      } catch {
+        // Use defaults if weather json parse fails
       }
-    } catch {
-      // Fallback to seasonal winter regional averages if weather telemetry times out
     }
+
+    const isInversion = currentAqi > 200 || (pm25 > 100 && (new Date().getHours() < 10 || new Date().getHours() > 18));
+
+    // Dynamic timeline: Slice the NEXT 7 upcoming forecast hours from the current time
+    const hourlyForecast: HourlyForecast[] = [];
+    if (hourly?.time && hourly?.us_aqi && hourly?.pm2_5) {
+      const nowIso = new Date().toISOString().slice(0, 13); // "YYYY-MM-DDTHH"
+      let startIndex = hourly.time.findIndex((t: string) => t.startsWith(nowIso));
+      if (startIndex === -1) startIndex = 0;
+
+      for (let i = startIndex; i < hourly.time.length && hourlyForecast.length < 7; i += 2) {
+        const rawTime = hourly.time[i];
+        const timeStr = rawTime.includes('T') ? rawTime.split('T')[1].slice(0, 5) : `${i}:00`;
+        const aqiVal = Math.round(hourly.us_aqi[i]);
+        const pmVal = Math.round(hourly.pm2_5[i]);
+        const hourNum = parseInt(timeStr.slice(0, 2), 10);
+
+        const { safe: ventilationSafe, advice: recommendation } = evaluateVentilationSafety(aqiVal, hourNum);
+        const invRisk = aqiVal > 250 ? 'High' : aqiVal > 120 ? 'Medium' : 'Low';
+
+        hourlyForecast.push({
+          hour: timeStr,
+          aqi: aqiVal,
+          pm25: pmVal,
+          inversionRisk: invRisk,
+          ventilationSafe,
+          recommendation
+        });
+      }
+    }
+
+    const pollutants: PollutantValues = { pm25, pm10, no2, o3, co, so2 };
 
     const cityData: CityData = {
       id: city.id,
@@ -108,18 +147,18 @@ export async function fetchLiveAqi(city: CityCoordinates): Promise<LiveAqiResult
       humidityPct,
       inversionLayerActive: isInversion,
       primarySmogSource: isInversion
-        ? 'Meteorological thermal inversion trapping ground aerosol particulates & exhaust'
-        : 'Ambient regional dispersion with moderate background particulate levels',
+        ? 'Thermal boundary inversion trapping ground aerosols & vehicle exhaust (CAMS model)'
+        : 'Ambient regional aerosol dispersion (Copernicus CAMS atmospheric model)',
       hourlyForecast: hourlyForecast.length > 0 ? hourlyForecast : [
-        { hour: '06:00', aqi: Math.round(currentAqi * 1.2), pm25: Math.round(pm25 * 1.2), inversionRisk: 'High', ventilationSafe: false, recommendation: 'Morning peak smog.' },
-        { hour: '14:00', aqi: Math.round(currentAqi * 0.75), pm25: Math.round(pm25 * 0.75), inversionRisk: 'Low', ventilationSafe: true, recommendation: 'Solar mixing window.' },
+        { hour: '08:00', aqi: Math.round(currentAqi * 1.15), pm25: Math.round(pm25 * 1.15), inversionRisk: 'High', ventilationSafe: false, recommendation: 'Morning cold inversion peak.' },
+        { hour: '14:00', aqi: Math.round(currentAqi * 0.8), pm25: Math.round(pm25 * 0.8), inversionRisk: 'Low', ventilationSafe: currentAqi <= 100, recommendation: 'Solar mixing window.' },
         { hour: '20:00', aqi: currentAqi, pm25: pm25, inversionRisk: 'High', ventilationSafe: false, recommendation: 'Evening smog accumulation.' }
       ]
     };
 
     return {
       cityData,
-      source: 'Live Open-Meteo / CAMS',
+      source: 'Open-Meteo CAMS Model',
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
   } catch (err) {

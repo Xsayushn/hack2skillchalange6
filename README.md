@@ -12,7 +12,7 @@ During winter months, northern and inland urban basins (such as Delhi NCR, Lahor
 3. **Practical, low-cost indoor hacks** (such as DIY **Corsi-Rosenthal boxes** delivering >450 CFM CADR at 80% lower cost than commercial purifiers).
 4. **Quantified direct impact** (kilograms of CO₂ prevented and micrograms of PM2.5 lung inhalation eliminated).
 
-**AeroGuardian** is a GenAI-powered web application that delivers proactive, personalized, and scientifically grounded air quality recommendations backed by **live Open-Meteo / Copernicus sensor feeds**.
+**AeroGuardian** is a GenAI-powered web application that delivers proactive, personalized, and scientifically grounded air quality recommendations backed by **live Open-Meteo / Copernicus CAMS atmospheric models**.
 
 ---
 
@@ -26,8 +26,12 @@ During winter months, northern and inland urban basins (such as Delhi NCR, Lahor
 
 ## 🧠 2. Approach and Logic
 
-### A. Diurnal Thermal Inversion Intelligence
-In winter smog episodes, ground cooling creates a steep nocturnal boundary inversion. Particulate concentrations (PM2.5 and PM10) routinely peak between 06:00–10:00 and 19:00–23:00. AeroGuardian models the **solar mixing window (13:30–15:30)** when convective heating temporarily lifts the lid, identifying the only safe period for rapid 10–15 minute indoor room cross-ventilation.
+### A. Diurnal Thermal Inversion Intelligence & Scientifically Validated Ventilation
+In winter smog episodes, ground cooling creates a steep nocturnal boundary inversion. Particulate concentrations (PM2.5 and PM10) routinely peak between 06:00–10:00 and 19:00–23:00. AeroGuardian models the **solar mixing window (13:30–15:30)** when convective heating temporarily lifts the boundary layer:
+* **AQI $\le 50$ (Good)**: Full natural cross-ventilation safe.
+* **AQI $51 - 100$ (Moderate)**: Natural ventilation safe during afternoon solar convective mixing.
+* **AQI $101 - 150$ (Unhealthy for Sensitive Groups)**: Brief 10m aeration only if indoor CO₂ is elevated; sensitive individuals remain in filtered rooms.
+* **AQI $> 150$ (Unhealthy / Hazardous)**: **Unsafe to ventilate**. Windows strictly locked even during midday; households rely exclusively on continuous indoor air scrubbing.
 
 ### B. Biological Persona & Vulnerability Modeling
 Different household members face vastly different physiological risks from particulate exposure:
@@ -55,7 +59,7 @@ AeroGuardian uses empirical formulas based on EPA, WHO guidelines, and transport
 ┌───────────────────────────────────────────────────────────────┐
 │                    User Interface Layer                       │
 │  React 18 + TypeScript + Tailwind CSS (WCAG 2.1 AA Compliant) │
-│  - Live Open-Meteo & GPS Station Card with Inversion Timeline │
+│  - Live CAMS Atmospheric Model Card with Inversion Timeline   │
 │  - Family Persona Customizer & Commute Distance Slider        │
 │  - Low-Emission Daily Routine Planner (Before/After)          │
 │  - Interactive IAQ Hacks Guide (Corsi-Rosenthal Box Wizard)   │
@@ -65,7 +69,7 @@ AeroGuardian uses empirical formulas based on EPA, WHO guidelines, and transport
         ┌───────────────────────┴───────────────────────┐
         ▼                                               ▼
 ┌───────────────────────────────┐       ┌───────────────────────────────┐
-│   Offline Heuristic AI Engine │       │    Google Gemini 2.0 Flash    │
+│   Offline Heuristic AI Engine │       │    Google Gemini 2.5 Flash    │
 │  (Instant, Rule-Based, Zero   │  OR   │ (Live Contextual Reasoning    │
 │    Configuration, No Leak)    │       │  via Secure Header Auth)      │
 └───────────────────────────────┘       └───────────────────────────────┘
@@ -73,7 +77,7 @@ AeroGuardian uses empirical formulas based on EPA, WHO guidelines, and transport
                                 ▼
 ┌───────────────────────────────────────────────────────────────┐
 │                    Domain Services & Math                     │
-│  - aqiApi.ts (Real-time Open-Meteo & Copernicus CAMS Client)  │
+│  - aqiApi.ts (Open-Meteo & Copernicus CAMS Parallel Client)   │
 │  - impactCalculator.ts (Dose Response, Inhalation Avoided)    │
 │  - security.ts (Header Key Auth, Safe Prompts, Rate Limiter)  │
 │  - cityDefaults.ts (Multi-city winter pollution profiles)     │
@@ -82,29 +86,29 @@ AeroGuardian uses empirical formulas based on EPA, WHO guidelines, and transport
 
 ### Key Modules:
 1. **Live AQI Hero & Diurnal Timeline (`AqiHeroCard.tsx` & `aqiApi.ts`)**:
-   Connects to **Open-Meteo & Copernicus Atmosphere Monitoring Service (CAMS)** for real-time live sensor updates, with GPS geolocation detection and automatic offline preset fallback.
+   Connects concurrently to **Open-Meteo & Copernicus Atmosphere Monitoring Service (CAMS)** for real-time model telemetry via `Promise.all()`, with dynamic hour slicing and GPS geolocation detection.
 2. **Indoor Air Quality (IAQ) Hacks Guide (`IaqHacksGuide.tsx`)**:
    Step-by-step DIY instructions for building the **Corsi-Rosenthal box** (4 MERV-13 filters + 20-inch box fan + cardboard shroud), draft sealing, wet microfiber dusting, and kitchen range hood protocols.
 3. **Daily Routine Optimizer (`RoutinePlanner.tsx`)**:
-   Compares conventional habits against clean air alternatives with real-time checkboxes.
+   Compares conventional habits against clean air alternatives with real-time reactive recalculation upon live AQI updates.
 4. **Impact Tracker (`ImpactTracker.tsx`)**:
    Displays community rank percentile (model estimate), tree-absorption equivalents, clean air hours gained, and total $PM_{2.5}$ saved.
 5. **Dual-Mode GenAI Assistant (`AiAssistantChat.tsx` & `geminiService.ts`)**:
    * **Mode 1 (Default)**: Offline Heuristic Reasoning Engine with immediate responses and contextual suggested exploration pills.
-   * **Mode 2 (Live Gemini 2.0 Flash)**: Supports Google Gemini 2.0 Flash with multi-turn conversation memory, transmitted securely via HTTP headers (`x-goog-api-key`) with client-side rate limiting.
+   * **Mode 2 (Live Gemini 2.5 Flash)**: Configurable Google Gemini 2.5 Flash integration with multi-turn conversation memory, transmitted securely via HTTP headers (`x-goog-api-key`) with client-side rate limiting.
 
 ---
 
 ## 📐 4. Assumptions Made & Scientific Citations
 
-1. **Ambient Air Quality Data**: Live readings fetched via Open-Meteo European CAMS API. Presets represent verified winter smog peaks in respective basins.
+1. **Ambient Air Quality Data**: Model forecasts fetched via Open-Meteo European CAMS API. Presets represent verified winter smog peaks in respective basins.
 2. **Adult & Child Breathing Volumes**: Average minute ventilation assumed at $10\text{–}12\text{ L/min}$ ($0.6\text{ m}^3/\text{hr}$) for adults at rest, $35\text{ L/min}$ ($2.1\text{ m}^3/\text{hr}$) under aerobic exercise, with children adjusted per EPA Child-Specific Exposure Factors.
 3. **Corsi-Rosenthal Box Performance**: Assumes 4 MERV-13 filters delivering approximately $450\text{–}550\text{ CFM}$ clean air delivery rate (CADR) in a standard $300\text{–}500\text{ sq ft}$ room (UC Davis Department of Civil & Environmental Engineering).
 4. **Mask Filtration**: Assumes a properly sealed N95 / KF94 respirator achieving $\ge 95\%$ particle filtration.
 5. **Scientific References**:
-   - World Health Organization: *WHO Global Air Quality Guidelines* (2021).
+   - World Health Organization: *WHO Global Air Quality Guidelines* (2021). Guideline level: $15\ \mu\text{g/m}^3$ (24-hr) and $5\ \mu\text{g/m}^3$ (annual).
    - United States Environmental Protection Agency: *AP-42 Compilation of Air Pollutant Emission Factors*.
-   - European Centre for Medium-Range Weather Forecasts (ECMWF): *Copernicus Atmosphere Monitoring Service*.
+   - European Centre for Medium-Range Weather Forecasts (ECMWF): *Copernicus Atmosphere Monitoring Service (CAMS)*.
 
 ---
 
@@ -116,20 +120,21 @@ AeroGuardian uses empirical formulas based on EPA, WHO guidelines, and transport
 * **Problem Relevance**: Directly targets winter smog, thermal inversions, vulnerable populations, low-cost DIY filters, and low-emission routines.
 
 ### 🔵 Medium Impact: Security & Resource Efficiency
-* **Zero Secret Leakage**: API keys reside strictly in client-side `localStorage` and are sent via HTTPS `x-goog-api-key` header (never exposed in URL query parameters).
+* **Client-Side Isolated Storage**: API keys reside strictly in browser `localStorage` and are sent via HTTPS `x-goog-api-key` header (never exposed in URL query parameters).
+* **Enterprise Roadmap**: For enterprise production deployments, a Node.js/Go backend proxy route with server-side Redis token-bucket rate limiting is recommended.
 * **Rate Limiting**: Integrated `chatRateLimiter` enforces a 15 req/min window.
 * **Ultra-Lean Footprint**:
-  * Total Production Bundle Size: **~270 kB** (CSS: 32 kB, JS: 238 kB).
+  * Total Production Bundle Size: **~272 kB** (CSS: 32 kB, JS: 240 kB).
   * Total Git Repository Size: **< 1.0 MB** (strictly satisfying the `< 10 MB` challenge rule).
   * Single branch: **`main`**.
 
 ### ⚪ Low Impact: Testing & Accessibility
-* **Testing Suite**: **22 automated unit tests** powered by `vitest` covering mathematical dosage calculations, live Open-Meteo API parsing, XSS sanitization, rate limiting, and Gemini header authentication.
-* **Accessibility (WCAG 2.1 AA)**:
+* **Testing Suite**: **23 automated unit tests** powered by `vitest` covering mathematical dosage calculations, live Open-Meteo API parsing, XSS sanitization, rate limiting, and Gemini header authentication.
+* **Accessibility (WCAG 2.1 AA Foundations)**:
   * High-Contrast Mode toggle for visually impaired users.
   * Semantic HTML5 elements (`<header>`, `<main>`, `<section>`, `<nav>`, `<footer>`).
-  * Full ARIA labeling (`aria-expanded`, `aria-pressed`, `aria-label`, `aria-live="polite"`, `role="dialog"`).
-  * Modal focus management with Escape key listeners.
+  * Full ARIA labeling (`aria-expanded`, `aria-pressed`, `aria-label`, `aria-live="polite"`, `role="region"`, `role="dialog"`).
+  * Modal focus management with Escape key listeners and focus return.
 
 ---
 
@@ -152,7 +157,7 @@ npm install
 # 3. Run development server
 npm run dev
 
-# 4. Run test suite
+# 4. Run test suite (23 tests)
 npm test
 
 # 5. Build production bundle
@@ -167,7 +172,7 @@ npm run build
 - [x] **Size Limit**: Entire source code is **under 1 MB** (well below the 10 MB limit).
 - [x] **Single Branch**: All commits are on the **`main`** branch only.
 - [x] **Chosen Vertical**: Clearly identified as Challenge 6 (Urban Air Quality Assistant).
-- [x] **Clean `.gitignore`**: Excludes `node_modules`, build outputs (`dist/`), environment variables, and raw screenshots.
+- [x] **Clean `.gitignore`**: Excludes `node_modules`, build outputs (`dist/`), environment variables, raw recordings, and screenshots.
 
 ---
 

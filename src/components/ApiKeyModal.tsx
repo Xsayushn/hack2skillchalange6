@@ -19,27 +19,35 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const previousActiveElement = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
 
-  // Auto-focus input, handle Escape key, and return focus upon modal close
+  // Keep latest onClose in a ref so it doesn't cause effect re-runs
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  // Focus and input initialization ONLY when isOpen changes
   useEffect(() => {
     if (isOpen) {
       previousActiveElement.current = document.activeElement as HTMLElement;
       setInputVal(currentKey);
       setError(null);
-      setTimeout(() => inputRef.current?.focus(), 50);
+      const timer = setTimeout(() => inputRef.current?.focus(), 50);
 
       const handleKeyDown = (e: KeyboardEvent) => {
         if (e.key === 'Escape') {
-          onClose();
+          onCloseRef.current();
         }
       };
       window.addEventListener('keydown', handleKeyDown);
+
       return () => {
+        clearTimeout(timer);
         window.removeEventListener('keydown', handleKeyDown);
         previousActiveElement.current?.focus?.();
       };
     }
-  }, [isOpen, currentKey, onClose]);
+  }, [isOpen]); // Only re-run when modal opens or closes!
 
   if (!isOpen) return null;
 
@@ -94,7 +102,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
             AeroGuardian includes a built-in <strong>Offline Heuristic Environmental Intelligence Engine</strong> that works out of the box with zero setup.
           </p>
           <p className="text-sm text-slate-600 leading-relaxed">
-            Optionally, you can connect your own <strong>Google Gemini API Key</strong> for live conversational reasoning (using header-authenticated `x-goog-api-key`).
+            Optionally, connect your own <strong>Google Gemini API Key</strong> for live conversational reasoning (using header-authenticated `x-goog-api-key`).
           </p>
 
           <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 flex items-start gap-2 text-xs text-emerald-800">

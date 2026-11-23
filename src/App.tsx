@@ -20,7 +20,7 @@ const STORAGE_KEY_CONTRAST = 'aeroguardian_contrast';
 export const App: React.FC = () => {
   const [citiesList, setCitiesList] = useState<CityData[]>(CITIES_DATA);
   const [selectedCityId, setSelectedCityId] = useState<string>('delhi');
-  const [dataSourceLabel, setDataSourceLabel] = useState<string>('Live Open-Meteo Sensor');
+  const [dataSourceLabel, setDataSourceLabel] = useState<string>('CAMS Forecast');
   const [isLiveLoading, setIsLiveLoading] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'routines' | 'iaq' | 'chat'>('dashboard');
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState<boolean>(false);
@@ -60,7 +60,7 @@ export const App: React.FC = () => {
       setCitiesList((prev) =>
         prev.map((c) => (c.id === cityId ? result.cityData : c))
       );
-      setDataSourceLabel(`Live CAMS / Open-Meteo (${result.timestamp})`);
+      setDataSourceLabel(`CAMS Forecast (${result.timestamp})`);
     } catch {
       setDataSourceLabel('Offline Backup Model');
     } finally {
@@ -83,7 +83,7 @@ export const App: React.FC = () => {
         try {
           const userCoords = {
             id: 'my-location',
-            name: 'Local GPS Sensor',
+            name: 'Local GPS Station',
             country: 'Live Geo',
             lat: pos.coords.latitude,
             lon: pos.coords.longitude
@@ -91,7 +91,7 @@ export const App: React.FC = () => {
           const res = await fetchLiveAqi(userCoords);
           setCitiesList((prev) => [res.cityData, ...prev.filter((c) => c.id !== 'my-location')]);
           setSelectedCityId(res.cityData.id);
-          setDataSourceLabel(`GPS Live (${res.timestamp})`);
+          setDataSourceLabel(`Location-Based Estimate (${res.timestamp})`);
         } catch {
           alert('Could not fetch air quality for your exact GPS coordinates.');
         } finally {
@@ -108,7 +108,7 @@ export const App: React.FC = () => {
   const handleAddCustomCity = (newCity: CityData) => {
     setCitiesList((prev) => [newCity, ...prev]);
     setSelectedCityId(newCity.id);
-    setDataSourceLabel('Custom User Station');
+    setDataSourceLabel('User Custom Estimate');
   };
 
   const [routines, setRoutines] = useState<RoutineItem[]>(() => {

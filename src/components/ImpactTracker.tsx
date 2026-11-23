@@ -91,15 +91,15 @@ export const ImpactTracker: React.FC<ImpactTrackerProps> = ({ metrics }) => {
           <div className="text-2xl sm:text-3xl font-black mt-2 text-white">
             +{metrics.cleanAirHoursGained} <span className="text-xs font-normal text-slate-400">hrs/day</span>
           </div>
-          <p className="text-[11px] text-slate-300 mt-1">
-            Hours living in safe PM2.5 baseline air (&lt;25 µg/m³ WHO target).
+          <p className="text-xs text-slate-300 mt-1">
+            Hours in safe air (&lt;15 µg/m³ WHO 2021 24-hr guideline; &lt;25 µg/m³ interim target).
           </p>
         </div>
       </div>
 
-      <div className="mt-4 pt-3 border-t border-white/10 text-[11px] text-slate-400 flex items-center justify-between">
+      <div className="mt-4 pt-3 border-t border-white/10 text-xs text-slate-400 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1">
         <span>Scientific References: WHO Global Air Quality Guidelines (2021) • US-EPA AP-42 Emission Factors</span>
-        <span>Model Version 2.1</span>
+        <span>Model Version 2.2 • All savings are mathematical exposure estimates</span>
       </div>
     </section>
   );
