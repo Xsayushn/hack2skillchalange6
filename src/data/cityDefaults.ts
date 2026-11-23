@@ -136,3 +136,38 @@ export function getAqiCategory(aqi: number): { category: CityData['category']; c
   if (aqi <= 300) return { category: 'Very Unhealthy', color: '#8B5CF6', advice: 'Health alert: serious risk. Run purifiers; strictly avoid outdoor sports.' };
   return { category: 'Hazardous', color: '#7F1D1D', advice: 'Emergency health warning: entire population affected. Stay indoors, seal rooms.' };
 }
+
+export function createCustomCity(name: string, aqi: number, country: string = 'Custom'): CityData {
+  const { category } = getAqiCategory(aqi);
+  const pm25 = Math.round(aqi * 0.77);
+  const pm10 = Math.round(aqi * 1.15);
+  const isInversion = aqi > 200;
+  return {
+    id: `custom-${name.toLowerCase().replace(/\s+/g, '-') || 'city'}`,
+    name: name || 'My City',
+    country,
+    currentAqi: aqi,
+    category,
+    pollutants: {
+      pm25,
+      pm10,
+      no2: Math.round(aqi * 0.22),
+      o3: Math.round(Math.max(10, 60 - aqi * 0.1)),
+      co: Number((aqi * 0.008).toFixed(1)),
+      so2: Math.round(aqi * 0.05),
+    },
+    temperatureC: 15,
+    humidityPct: 70,
+    inversionLayerActive: isInversion,
+    primarySmogSource: isInversion
+      ? 'Thermal inversion trapping local vehicular exhaust, dust & biomass burning'
+      : 'Local urban traffic and ambient industrial dispersion',
+    hourlyForecast: [
+      { hour: '06:00', aqi: Math.round(aqi * 1.15), pm25: Math.round(pm25 * 1.15), inversionRisk: isInversion ? 'High' : 'Medium', ventilationSafe: false, recommendation: 'Early morning cold inversion peak. Keep windows closed.' },
+      { hour: '10:00', aqi, pm25, inversionRisk: isInversion ? 'Medium' : 'Low', ventilationSafe: false, recommendation: 'Morning rush hour activity.' },
+      { hour: '14:00', aqi: Math.round(aqi * 0.75), pm25: Math.round(pm25 * 0.75), inversionRisk: 'Low', ventilationSafe: aqi < 300, recommendation: 'Solar heating lifts boundary layer. Best relative ventilation window.' },
+      { hour: '18:00', aqi: Math.round(aqi * 0.95), pm25: Math.round(pm25 * 0.95), inversionRisk: isInversion ? 'Medium' : 'Low', ventilationSafe: false, recommendation: 'Evening traffic and temperature dropping.' },
+      { hour: '22:00', aqi: Math.round(aqi * 1.1), pm25: Math.round(pm25 * 1.1), inversionRisk: isInversion ? 'High' : 'Low', ventilationSafe: false, recommendation: 'Nocturnal cooling traps emissions.' }
+    ]
+  };
+}

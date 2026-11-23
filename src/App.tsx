@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { CITIES_DATA } from './data/cityDefaults';
-import { UserFamilyProfile, RoutineItem, UserImpactMetrics } from './types/aqi';
+import { UserFamilyProfile, RoutineItem, UserImpactMetrics, CityData } from './types/aqi';
 import { AssistantContext } from './types/assistant';
 import { generateDailyRoutines, computeOverallImpact } from './services/impactCalculator';
 import { Navbar } from './components/Navbar';
@@ -17,6 +17,7 @@ const STORAGE_KEY_APIKEY = 'aeroguardian_gemini_key';
 const STORAGE_KEY_CONTRAST = 'aeroguardian_contrast';
 
 export const App: React.FC = () => {
+  const [citiesList, setCitiesList] = useState<CityData[]>(CITIES_DATA);
   const [selectedCityId, setSelectedCityId] = useState<string>('delhi');
   const [activeTab, setActiveTab] = useState<'dashboard' | 'routines' | 'iaq' | 'chat'>('dashboard');
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState<boolean>(false);
@@ -45,7 +46,12 @@ export const App: React.FC = () => {
     };
   });
 
-  const currentCity = CITIES_DATA.find((c) => c.id === selectedCityId) || CITIES_DATA[0];
+  const currentCity = citiesList.find((c) => c.id === selectedCityId) || citiesList[0];
+
+  const handleAddCustomCity = (newCity: CityData) => {
+    setCitiesList((prev) => [newCity, ...prev]);
+    setSelectedCityId(newCity.id);
+  };
 
   const [routines, setRoutines] = useState<RoutineItem[]>(() => {
     return generateDailyRoutines(familyProfile, currentCity.currentAqi, currentCity.pollutants.pm25);
@@ -149,7 +155,8 @@ export const App: React.FC = () => {
             <AqiHeroCard
               city={currentCity}
               onCityChange={(id) => setSelectedCityId(id)}
-              availableCities={CITIES_DATA}
+              availableCities={citiesList}
+              onAddCustomCity={handleAddCustomCity}
             />
 
             <ProfileSelector

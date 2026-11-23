@@ -1,8 +1,17 @@
 import { describe, it, expect } from 'vitest';
-import { CITIES_DATA, getAqiCategory } from '../data/cityDefaults';
+import { CITIES_DATA, getAqiCategory, createCustomCity } from '../data/cityDefaults';
 import { IAQ_HACKS } from '../data/iaqHacks';
 
 describe('City and IAQ Static Knowledge Integrity', () => {
+  it('creates custom dynamic city with accurate speciation and inversion flags', () => {
+    const custom = createCustomCity('Patna', 320, 'India');
+    expect(custom.name).toBe('Patna');
+    expect(custom.currentAqi).toBe(320);
+    expect(custom.category).toBe('Hazardous');
+    expect(custom.inversionLayerActive).toBe(true);
+    expect(custom.pollutants.pm25).toBeGreaterThan(200);
+    expect(custom.hourlyForecast.length).toBe(5);
+  });
   it('contains valid city datasets with comprehensive hourly diurnal forecasts', () => {
     expect(CITIES_DATA.length).toBeGreaterThanOrEqual(4);
     for (const city of CITIES_DATA) {

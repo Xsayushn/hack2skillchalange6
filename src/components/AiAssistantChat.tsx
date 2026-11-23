@@ -97,7 +97,12 @@ Ask me anything about:
       </div>
 
       {/* Messages Scroll Area */}
-      <div className="flex-1 overflow-y-auto py-4 space-y-4 pr-1">
+      <div 
+        className="flex-1 overflow-y-auto py-4 space-y-4 pr-1"
+        aria-live="polite"
+        aria-atomic="false"
+        role="log"
+      >
         {messages.map((msg) => (
           <div
             key={msg.id}

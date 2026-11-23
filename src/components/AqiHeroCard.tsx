@@ -1,19 +1,34 @@
-import React from 'react';
-import { getAqiCategory } from '../data/cityDefaults';
+import React, { useState } from 'react';
+import { getAqiCategory, createCustomCity } from '../data/cityDefaults';
 import { CityData, HourlyForecast } from '../types/aqi';
-import { AlertTriangle, Droplets, Thermometer, Wind, Clock } from 'lucide-react';
+import { AlertTriangle, Droplets, Thermometer, Wind, Clock, PlusCircle } from 'lucide-react';
 
 interface AqiHeroCardProps {
   city: CityData;
   onCityChange: (cityId: string) => void;
   availableCities: CityData[];
+  onAddCustomCity: (newCity: CityData) => void;
 }
 
 export const AqiHeroCard: React.FC<AqiHeroCardProps> = ({
   city,
   onCityChange,
-  availableCities
+  availableCities,
+  onAddCustomCity
 }) => {
+  const [showCustomModal, setShowCustomModal] = useState(false);
+  const [customName, setCustomName] = useState('');
+  const [customAqi, setCustomAqi] = useState<number>(250);
+
+  const handleCreateCustom = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customName.trim()) return;
+    const created = createCustomCity(customName.trim(), Number(customAqi));
+    onAddCustomCity(created);
+    setShowCustomModal(false);
+    setCustomName('');
+  };
+
   const { category, advice } = getAqiCategory(city.currentAqi);
 
   const getAqiBadgeStyle = (aqi: number) => {
@@ -51,24 +66,79 @@ export const AqiHeroCard: React.FC<AqiHeroCardProps> = ({
         </div>
 
         {/* City Dropdown Selector */}
-        <div className="flex items-center gap-2">
-          <label htmlFor="city-select" className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-            Location:
-          </label>
-          <select
-            id="city-select"
-            value={city.id}
-            onChange={(e) => onCityChange(e.target.value)}
-            className="px-4 py-2.5 rounded-xl border border-slate-300 bg-slate-50 font-semibold text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+          <div className="flex items-center gap-2">
+            <label htmlFor="city-select" className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+              Location:
+            </label>
+            <select
+              id="city-select"
+              value={city.id}
+              onChange={(e) => onCityChange(e.target.value)}
+              className="px-3.5 py-2 rounded-xl border border-slate-300 bg-slate-50 font-semibold text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+              {availableCities.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} ({c.country}) - AQI {c.currentAqi}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowCustomModal(!showCustomModal)}
+            className="px-3 py-2 rounded-xl bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300 text-xs font-bold flex items-center gap-1 transition-colors"
+            title="Add your local town or neighborhood"
           >
-            {availableCities.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name} ({c.country}) - AQI {c.currentAqi}
-              </option>
-            ))}
-          </select>
+            <PlusCircle className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Custom City</span>
+          </button>
         </div>
       </div>
+
+      {/* Custom City Quick Creator Inline Card */}
+      {showCustomModal && (
+        <form onSubmit={handleCreateCustom} className="mt-4 p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200 flex flex-col sm:flex-row items-center gap-3 text-xs">
+          <div className="flex-1 w-full">
+            <label className="block text-[11px] font-bold text-emerald-900 mb-1">City / Neighborhood Name:</label>
+            <input
+              type="text"
+              required
+              placeholder="e.g. Kanpur, New York, Patna, London..."
+              value={customName}
+              onChange={(e) => setCustomName(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-800 font-medium focus:ring-2 focus:ring-emerald-500"
+            />
+          </div>
+          <div className="w-full sm:w-48">
+            <label className="block text-[11px] font-bold text-emerald-900 mb-1">Current AQI ({customAqi}):</label>
+            <input
+              type="range"
+              min="10"
+              max="500"
+              value={customAqi}
+              onChange={(e) => setCustomAqi(Number(e.target.value))}
+              className="w-full accent-emerald-600"
+            />
+          </div>
+          <div className="flex items-center gap-2 pt-2 sm:pt-4 w-full sm:w-auto">
+            <button
+              type="submit"
+              className="px-4 py-2 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700 shadow-sm transition-colors text-xs"
+            >
+              Set Active
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowCustomModal(false)}
+              className="px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-600 text-xs font-medium"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
 
       {/* Main AQI Meter & Core Indicators */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 mt-6 items-center">
