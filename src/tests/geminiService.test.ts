@@ -13,7 +13,7 @@ describe('Gemini 3.8 Flash & Heuristic Intelligence Service', () => {
     currentAqi: 320,
     aqiCategory: 'Very Unhealthy',
     pm25: 240,
-    estimatedStagnationRisk: 'High',
+    estimatedStagnationRisk: 'Unknown',
     vulnerabilities: ['Infant/Child', 'Respiratory/Asthma'],
     hasPurifier: true,
     commuteMode: 'Private Car',
@@ -31,8 +31,18 @@ describe('Gemini 3.8 Flash & Heuristic Intelligence Service', () => {
     // Must contain scientific disclaimers:
     expect(prompt).toContain('NO UNIVERSAL TIME WINDOWS');
     expect(prompt).toContain('NO MEDICAL DIAGNOSIS');
+    expect(prompt).toContain('STAGNATION EVIDENCE');
     expect(prompt).toContain('indoor air quality is not directly measured');
     expect(prompt).not.toContain('temperature');
+  });
+
+  it('does not infer a stagnation event from elevated pollutant values', () => {
+    const response = generateHeuristicResponse('Is there a temperature inversion?', dummyContext);
+
+    expect(response.content).toContain(
+      'cannot determine whether stagnation or an inversion is present'
+    );
+    expect(response.content).not.toContain('shallow surface boundary layer');
   });
 
   it('sends API key via x-goog-api-key HTTP header and excludes unsupported generationConfig parameters', async () => {
@@ -147,6 +157,22 @@ describe('Gemini 3.8 Flash & Heuristic Intelligence Service', () => {
     expect(response.content).toContain('Corsi-Rosenthal');
     expect(response.content).toContain('MERV-13');
     expect(response.suggestedActions?.length).toBeGreaterThan(0);
+  });
+
+  it('handles external cancellation signal and switches to fallback', async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    const response = await sendChatMessage(
+      [],
+      'Hello',
+      dummyContext,
+      'AIzaSyValidKey12345678901234567890123',
+      { signal: controller.signal }
+    );
+
+    expect(response.content).toBeDefined();
+    expect(response.impactHighlight?.value).toContain('offline heuristic engine');
   });
 
   it('heuristic engine warns against natural ventilation when AQI is elevated', () => {

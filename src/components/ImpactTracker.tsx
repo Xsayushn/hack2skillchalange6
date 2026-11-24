@@ -55,7 +55,7 @@ export const ImpactTracker: React.FC<ImpactTrackerProps> = ({ metrics }) => {
             Estimates ambient fine particulate mass kept out of the upper respiratory tract via
             behavioral substitution and fitted N95 filtration.
           </p>
-          <div className="mt-3 pt-3 border-t border-white/10 text-[11px] text-slate-400">
+          <div className="mt-3 pt-3 border-t border-white/10 text-xs text-slate-200">
             * Disclaimer: Inhaled mass represents aerosol intake; it is not a clinical
             lung-deposited dose.
           </div>
@@ -69,13 +69,13 @@ export const ImpactTracker: React.FC<ImpactTrackerProps> = ({ metrics }) => {
           </div>
           <div className="text-3xl font-black mt-2 text-white">
             {metrics.transportCo2SavedKg}{' '}
-            <span className="text-sm font-normal text-slate-400">kg CO₂ / round-trip</span>
+            <span className="text-sm font-normal text-slate-300">kg CO₂ / round-trip</span>
           </div>
-          <p className="text-xs text-slate-300 mt-2 leading-relaxed">
+          <p className="text-xs text-slate-200 mt-2 leading-relaxed">
             Direct operational emission difference between reported baseline commute (
             {ca.commuteMode}) and electrified public transit over {ca.commuteDistanceKm * 2} km.
           </p>
-          <div className="mt-3 pt-3 border-t border-white/10 text-[11px] text-slate-400">
+          <div className="mt-3 pt-3 border-t border-white/10 text-xs text-slate-200">
             * If existing commute is walking, cycling, or mass transit, zero additional delta is
             claimed.
           </div>
@@ -83,12 +83,12 @@ export const ImpactTracker: React.FC<ImpactTrackerProps> = ({ metrics }) => {
       </div>
 
       {/* Transparent Calculation Assumptions Box */}
-      <div className="mt-6 p-4 rounded-2xl bg-black/30 border border-white/10 text-xs text-slate-300 space-y-2">
+      <div className="mt-6 p-4 rounded-2xl bg-black/30 border border-white/10 text-xs text-slate-200 space-y-2">
         <div className="flex items-center gap-1.5 font-bold text-white">
           <Info className="w-4 h-4 text-emerald-400 shrink-0" aria-hidden="true" />
           <span>Active Calculation Assumptions & Scientific Benchmarks:</span>
         </div>
-        <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-[11px] text-slate-300 pt-1">
+        <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-xs text-slate-200 pt-1">
           <li>
             • <strong>Resting Minute Ventilation:</strong> {ca.adultRestVentilationM3Hr} m³/hr (~10
             L/min, EPA 2011)
@@ -116,7 +116,7 @@ export const ImpactTracker: React.FC<ImpactTrackerProps> = ({ metrics }) => {
         </ul>
       </div>
 
-      <div className="mt-4 pt-3 border-t border-white/10 text-[11px] text-slate-400 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1">
+      <div className="mt-4 pt-3 border-t border-white/10 text-xs text-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1">
         <span>
           Scientific References: US EPA Exposure Factors Handbook (2011) • US EPA AP-42 • UK DEFRA
           (2023)

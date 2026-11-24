@@ -88,27 +88,30 @@ export function generateDailyRoutines(
   _currentAqi: number | null,
   pm25: number | null
 ): RoutineItem[] {
-  const distance = Math.max(0, profile.commuteDistanceKm || 15);
+  const distance = Number.isFinite(profile.commuteDistanceKm)
+    ? Math.max(0, profile.commuteDistanceKm)
+    : 15;
   const currentMode = profile.dailyCommuteMode || 'Private Car';
   const { savedCo2Kg, baselineFactor, transitFactor, roundTripKm } = calculateCommuteCo2Delta(
     currentMode,
     distance
   );
 
-  const effectivePm25 = pm25 !== null && pm25 > 0 ? pm25 : 0;
+  const hasPm25 = pm25 !== null && Number.isFinite(pm25) && pm25 >= 0;
+  const modeledPm25 = hasPm25 ? pm25 : null;
 
-  // Exercise savings: Inhaled mass difference between 1 hour outdoor exertion unmasked vs 1 hour indoor light rest
-  // Indoor air assumed ~60% cleaner with indoor filtration/enclosure (or 0 if ambient PM2.5 is unavailable)
-  const outdoorRunMass = calculateDailyInhaledDose(effectivePm25, 1.0, true, false);
-  const indoorRestMass = calculateDailyInhaledDose(effectivePm25 * 0.4, 1.0, false, false);
-  const exerciseExposureSaved = Math.round(Math.max(0, outdoorRunMass - indoorRestMass));
+  // Indoor PM2.5 and filtration performance are not measured, so exercise savings are not quantified.
+  const exerciseExposureSaved = 0;
 
   // Commute exposure saved: In-traffic unmasked commute (~1 hr at 1.0 m³/hr) vs filtered mass transit with N95
-  const commuteInhaledOutdoor = calculateDailyInhaledDose(effectivePm25, 1.0, false, false);
-  const commuteInhaledProtected = calculateDailyInhaledDose(effectivePm25, 1.0, false, true);
+  const commuteInhaledOutdoor = calculateDailyInhaledDose(modeledPm25, 1.0, false, false);
+  const commuteInhaledProtected = calculateDailyInhaledDose(modeledPm25, 1.0, false, true);
   const commuteExposureSaved = Math.round(
     Math.max(0, commuteInhaledOutdoor - commuteInhaledProtected)
   );
+  const commuteExposureAssumption = hasPm25
+    ? `Exposure estimate assumes one hour at modeled ambient PM2.5 (${pm25} µg/m³), resting ventilation, and a continuously fitted N95; it is not an in-vehicle or route measurement.`
+    : 'No commute exposure estimate: ambient PM2.5 is unavailable.';
 
   const commuteActionText =
     currentMode === 'Active (Bicycle/Walk)'
@@ -132,7 +135,7 @@ export function generateDailyRoutines(
       healthBenefit:
         'Reduces direct roadway nitrogen dioxide (NO2) and diesel particulate exposure.',
       isAdopted: false,
-      assumptions: `Based on EPA AP-42: ${baselineFactor} kg CO2/km (${currentMode}) vs ${transitFactor} kg CO2/km (Metro/Bus) over ${roundTripKm} km round-trip.`,
+      assumptions: `CO₂ estimate: ${baselineFactor} kg/km (${currentMode}) vs ${transitFactor} kg/km (Metro/Bus) over ${roundTripKm} km round-trip. ${commuteExposureAssumption}`,
     },
     {
       id: 'routine-morning-exercise',
@@ -146,7 +149,8 @@ export function generateDailyRoutines(
       healthBenefit:
         'Prevents high-volume inhalation of coarse and fine soot during heavy aerobic minute ventilation (2.1 m³/hr).',
       isAdopted: false,
-      assumptions: `Calculated as 1 hr at 2.1 m³/hr minute ventilation (outdoor ambient PM2.5: ${effectivePm25} µg/m³) vs indoor resting rate (0.6 m³/hr) in filtered room.`,
+      assumptions:
+        'Indoor PM2.5 concentration and filtration performance are not measured, so avoided inhaled mass is not quantified.',
     },
     {
       id: 'routine-cooking',
@@ -156,13 +160,12 @@ export function generateDailyRoutines(
       ecoCleanAction:
         'Operate ducted range hood on high; isolate kitchen from living and sleeping quarters.',
       emissionSavedKgCo2: 0.0,
-      exposureAvoidedPm25Ug:
-        effectivePm25 > 0 ? Math.min(150, Math.round(effectivePm25 * 0.5)) : 50,
+      exposureAvoidedPm25Ug: 0,
       healthBenefit:
         'Mitigates indoor concentration spikes of acrolein, ultrafine oil droplets, and carbon monoxide.',
       isAdopted: false,
       assumptions:
-        'Assumes mechanical range hood exhaust reduces indoor aerosol diffusion to adjacent living quarters.',
+        'Indoor cooking PM2.5 before and after range-hood use is not measured, so avoided inhaled mass is not quantified.',
     },
     {
       id: 'routine-heating',
@@ -171,13 +174,13 @@ export function generateDailyRoutines(
       originalAction: 'Open fireplace, wood stove, or unvented fuel burner',
       ecoCleanAction:
         'Use sealed electric radiant heating, draft-proof exterior doors, and thermal window curtains.',
-      emissionSavedKgCo2: 1.5,
-      exposureAvoidedPm25Ug: 200,
+      emissionSavedKgCo2: 0,
+      exposureAvoidedPm25Ug: 0,
       healthBenefit:
         'Eliminates household generation of toxic polycyclic aromatic hydrocarbons (PAHs) and carbon monoxide.',
       isAdopted: false,
       assumptions:
-        'Considers substitution of solid biomass combustion with clean electric heating.',
+        'Heating fuel use, local electricity emissions, and indoor PM2.5 are not measured, so CO₂ and exposure savings are not quantified.',
     },
   ];
 }

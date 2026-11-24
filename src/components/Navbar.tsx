@@ -49,13 +49,11 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           {/* Navigation Tabs */}
-          <nav
-            className="hidden md:flex items-center space-x-1"
-            role="navigation"
-            aria-label="Main Navigation"
-          >
+          <nav className="hidden md:flex items-center space-x-1" aria-label="Main Navigation">
             <button
+              type="button"
               onClick={() => setActiveTab('dashboard')}
+              aria-current={activeTab === 'dashboard' ? 'page' : undefined}
               className={`px-3.5 py-2 rounded-lg text-sm font-semibold transition-all ${
                 activeTab === 'dashboard'
                   ? 'bg-emerald-600 text-white shadow-sm'
@@ -65,7 +63,9 @@ export const Navbar: React.FC<NavbarProps> = ({
               AQI & Forecast
             </button>
             <button
+              type="button"
               onClick={() => setActiveTab('routines')}
+              aria-current={activeTab === 'routines' ? 'page' : undefined}
               className={`px-3.5 py-2 rounded-lg text-sm font-semibold transition-all ${
                 activeTab === 'routines'
                   ? 'bg-emerald-600 text-white shadow-sm'
@@ -75,7 +75,9 @@ export const Navbar: React.FC<NavbarProps> = ({
               Eco Routines & Impact
             </button>
             <button
+              type="button"
               onClick={() => setActiveTab('iaq')}
+              aria-current={activeTab === 'iaq' ? 'page' : undefined}
               className={`px-3.5 py-2 rounded-lg text-sm font-semibold transition-all ${
                 activeTab === 'iaq'
                   ? 'bg-emerald-600 text-white shadow-sm'
@@ -85,7 +87,9 @@ export const Navbar: React.FC<NavbarProps> = ({
               Indoor Air Hacks
             </button>
             <button
+              type="button"
               onClick={() => setActiveTab('chat')}
+              aria-current={activeTab === 'chat' ? 'page' : undefined}
               className={`px-3.5 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-1.5 ${
                 activeTab === 'chat'
                   ? 'bg-emerald-600 text-white shadow-sm'
@@ -101,7 +105,9 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div className="flex items-center gap-2">
             {/* Accessibility High Contrast Switch */}
             <button
+              type="button"
               onClick={toggleHighContrast}
+              aria-pressed={highContrast}
               className={`p-2 rounded-lg border text-sm font-medium transition-colors flex items-center gap-1.5 ${
                 highContrast
                   ? 'bg-black text-yellow-300 border-yellow-300'
@@ -134,33 +140,44 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
 
         {/* Mobile Navigation bar */}
-        <div className="flex md:hidden border-t border-slate-200 py-2 justify-around text-xs">
+        <nav
+          aria-label="Mobile Navigation"
+          className="flex md:hidden border-t border-slate-200 py-2 justify-around text-xs"
+        >
           <button
+            type="button"
             onClick={() => setActiveTab('dashboard')}
+            aria-current={activeTab === 'dashboard' ? 'page' : undefined}
             className={`py-1 px-2 rounded font-medium ${activeTab === 'dashboard' ? 'bg-emerald-600 text-white' : 'text-slate-600'}`}
           >
             Dashboard
           </button>
           <button
+            type="button"
             onClick={() => setActiveTab('routines')}
+            aria-current={activeTab === 'routines' ? 'page' : undefined}
             className={`py-1 px-2 rounded font-medium ${activeTab === 'routines' ? 'bg-emerald-600 text-white' : 'text-slate-600'}`}
           >
             Routines
           </button>
           <button
+            type="button"
             onClick={() => setActiveTab('iaq')}
+            aria-current={activeTab === 'iaq' ? 'page' : undefined}
             className={`py-1 px-2 rounded font-medium ${activeTab === 'iaq' ? 'bg-emerald-600 text-white' : 'text-slate-600'}`}
           >
             IAQ Hacks
           </button>
           <button
+            type="button"
             onClick={() => setActiveTab('chat')}
+            aria-current={activeTab === 'chat' ? 'page' : undefined}
             className={`py-1 px-2 rounded font-medium flex items-center gap-1 ${activeTab === 'chat' ? 'bg-emerald-600 text-white' : 'text-slate-600'}`}
           >
             <Sparkles className="w-3 h-3 text-emerald-500" />
             AI Chat
           </button>
-        </div>
+        </nav>
       </div>
     </header>
   );

@@ -63,7 +63,7 @@ export const AqiHeroCard: React.FC<AqiHeroCardProps> = ({
     switch (city.sourceType) {
       case 'live_cams_model':
         return {
-          label: 'Live CAMS Model',
+          label: 'Model-based AQI estimate (CAMS)',
           style: 'bg-emerald-100 text-emerald-900 border-emerald-300',
         };
       case 'cached_cams_model':
@@ -261,7 +261,7 @@ export const AqiHeroCard: React.FC<AqiHeroCardProps> = ({
         <div className="lg:col-span-5 rounded-2xl p-6 flex flex-col justify-between items-center text-center bg-gradient-to-b from-slate-900 to-slate-800 text-white shadow-md relative overflow-hidden">
           <div className="w-full flex items-center justify-between text-xs text-slate-400 pb-2 border-b border-white/10">
             <span>Atmospheric Model Forecast</span>
-            <span className="font-mono text-[11px]">{city.timezone || 'UTC'}</span>
+            <span className="font-mono text-xs">{city.timezone || 'UTC'}</span>
           </div>
 
           <div className="my-6">
@@ -308,9 +308,7 @@ export const AqiHeroCard: React.FC<AqiHeroCardProps> = ({
               <Wind className="w-4 h-4 text-emerald-600" aria-hidden="true" />
               Chemical & Particulate Speciation (Model Telemetry)
             </h2>
-            <span className="text-[11px] text-slate-500">
-              WHO 2021 Reference: 15 µg/m³ (24-hr avg)
-            </span>
+            <span className="text-xs text-slate-500">WHO 2021 Reference: 15 µg/m³ (24-hr avg)</span>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -319,7 +317,7 @@ export const AqiHeroCard: React.FC<AqiHeroCardProps> = ({
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-rose-800">PM2.5 (Fine Particulate)</span>
                 {city.pollutants.pm25 !== null && (
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-200 text-rose-900">
+                  <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-rose-200 text-rose-900">
                     {Math.round(city.pollutants.pm25 / 15)}x WHO 24h
                   </span>
                 )}
@@ -336,7 +334,7 @@ export const AqiHeroCard: React.FC<AqiHeroCardProps> = ({
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-amber-800">PM10 (Coarse Dust)</span>
                 {city.pollutants.pm10 !== null && (
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-200 text-amber-900">
+                  <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-amber-200 text-amber-900">
                     {Math.round(city.pollutants.pm10 / 45)}x WHO 24h
                   </span>
                 )}
@@ -421,7 +419,7 @@ export const AqiHeroCard: React.FC<AqiHeroCardProps> = ({
               <div
                 key={idx}
                 className={`p-3 rounded-xl border flex flex-col justify-between text-xs transition-all ${
-                  hourData.ventilationViable
+                  hourData.ventilationViable === true
                     ? 'bg-emerald-50 border-emerald-300 ring-2 ring-emerald-400/30'
                     : 'bg-slate-50 border-slate-200'
                 }`}
@@ -429,15 +427,19 @@ export const AqiHeroCard: React.FC<AqiHeroCardProps> = ({
                 <div className="flex items-center justify-between font-bold text-slate-700">
                   <span>{hourData.hour}</span>
                   <span
-                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                    className={`px-1.5 py-0.5 rounded text-xs font-bold ${
                       hourData.stagnationRisk === 'High'
                         ? 'bg-rose-200 text-rose-900'
                         : hourData.stagnationRisk === 'Medium'
                           ? 'bg-amber-200 text-amber-900'
-                          : 'bg-emerald-200 text-emerald-900'
+                          : hourData.stagnationRisk === 'Low'
+                            ? 'bg-emerald-200 text-emerald-900'
+                            : 'bg-slate-200 text-slate-700'
                     }`}
                   >
-                    {hourData.stagnationRisk} Risk
+                    {hourData.stagnationRisk === 'Unknown'
+                      ? 'Stagnation unknown'
+                      : `${hourData.stagnationRisk} Risk`}
                   </span>
                 </div>
 
@@ -452,12 +454,18 @@ export const AqiHeroCard: React.FC<AqiHeroCardProps> = ({
 
                 <div
                   className={`text-xs font-semibold py-1 px-1.5 rounded text-center ${
-                    hourData.ventilationViable
+                    hourData.ventilationViable === true
                       ? 'bg-emerald-600 text-white font-bold'
-                      : 'bg-slate-200 text-slate-700'
+                      : hourData.ventilationViable === false
+                        ? 'bg-slate-200 text-slate-700'
+                        : 'bg-amber-100 text-amber-900'
                   }`}
                 >
-                  {hourData.ventilationViable ? '✓ Aeration Viable' : '🔒 Windows Closed'}
+                  {hourData.ventilationViable === true
+                    ? '✓ Aeration Viable'
+                    : hourData.ventilationViable === false
+                      ? 'Windows closed per AQI guidance'
+                      : 'Ventilation guidance unavailable'}
                 </div>
               </div>
             ))}

@@ -102,10 +102,10 @@ export const ProfileSelector: React.FC<ProfileSelectorProps> = ({ profile, onCha
                     <div className="text-xs font-bold text-slate-800 flex items-center justify-between">
                       <span>{opt.label}</span>
                       {isSelected && (
-                        <span className="text-[10px] font-bold text-emerald-700">Active Alert</span>
+                        <span className="text-xs font-bold text-emerald-700">Active Alert</span>
                       )}
                     </div>
-                    <p className="text-[11px] text-slate-500 truncate">{opt.desc}</p>
+                    <p className="text-xs text-slate-500 truncate">{opt.desc}</p>
                   </div>
                 </button>
               );
@@ -176,13 +176,13 @@ export const ProfileSelector: React.FC<ProfileSelectorProps> = ({ profile, onCha
             >
               <Shield className="w-4 h-4 mx-auto mb-1 text-emerald-600" aria-hidden="true" />
               <div className="text-xs">Mechanical Air Purifier</div>
-              <div className="text-[10px] text-slate-500">
+              <div className="text-xs text-slate-500">
                 {profile.hasAirPurifier ? 'Operating Indoors' : 'No Purifier (Need DIY)'}
               </div>
             </button>
 
             <div className="p-3 rounded-xl border bg-slate-50 border-slate-200 flex flex-col justify-center text-xs">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                 Household Composition
               </span>
               <div className="flex items-center justify-between mt-1 text-slate-700">

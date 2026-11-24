@@ -33,7 +33,7 @@ Winter smog episodes feature shallow planetary boundary layers and nocturnal rad
 * **AQI $\le 50$ (Good)**: Natural cross-ventilation is viable.
 * **AQI $51 - 100$ (Moderate)**: Natural ventilation conditionally viable for brief periods (15–20 minutes) to manage indoor $\text{CO}_2$; sensitive occupants should monitor symptoms.
 * **AQI $> 100$ (Unhealthy for Sensitive Groups & Higher)**: **Natural ventilation is not recommended**. Ambient air carries elevated particulate levels; windows should remain sealed while running indoor mechanical filtration.
-* **Data Caveat**: Ambient telemetry originates from regional numerical weather models (Copernicus CAMS at 0.4°/0.75° grid resolution). Vertical thermal soundings are not directly measured; conditions are described as **estimated surface stagnation risk**.
+* **Data Caveat**: Ambient telemetry originates from regional numerical weather models (Copernicus CAMS at 0.4°/0.75° grid resolution). This app does not currently ingest wind or vertical-profile observations, so **surface stagnation risk is shown as unknown**; pollutant levels alone are not treated as evidence of stagnation or an inversion.
 
 ### B. Estimated Inhaled PM2.5 Mass Formula
 AeroGuardian models the mass of ambient fine particulate drawn into the respiratory tract:
@@ -101,7 +101,7 @@ $$\Delta\text{CO}_2\text{ (kg)} = d_{\text{round-trip}} \times \max\left(0,\, E_
 ```
 
 ### Key Security & Integrity Attributes:
-1. **Memory-Only API Key Handling**: The Google Gemini API key resides solely in volatile JavaScript memory for the active tab session. It is **never written to browser `localStorage`**, eliminating persistent XSS credential exposure.
+1. **Memory-Only API Key Handling**: The Google Gemini API key resides solely in volatile JavaScript memory for the active tab session and is never written to browser `localStorage`. Memory-only handling avoids persistence; it does not make a browser-held key secret from the user or browser extensions. Use a personal key with restrictions and quotas.
 2. **Client-Side Throttling Disclaimer**: The client-side sliding window limiter (15 requests/minute) provides UI throttling against double-submits. Authoritative throttling requires a backend proxy.
 3. **Restricted Content Security Policy (CSP)**: Hardened with `object-src 'none'`, `base-uri 'self'`, `form-action 'self'`, and `frame-ancestors 'none'` delivered via HTTP response headers.
 4. **No Fabricated Telemetry**: Custom user cities with manual AQI inputs show other chemical species and hourly forecast curves as `Unavailable` (`null`), preventing fabricated readings.
@@ -110,25 +110,25 @@ $$\Delta\text{CO}_2\text{ (kg)} = d_{\text{round-trip}} \times \max\left(0,\, E_
 
 ## 🧪 4. Automated Testing & Verification Suite
 
-AeroGuardian includes **42 automated unit and accessibility tests** run via `vitest` in a JSDOM environment:
+AeroGuardian includes **49 automated unit and accessibility tests** run via `vitest` in a JSDOM environment:
 
 | Test Suite | Tests | Scope & Assertions |
 | :--- | :---: | :--- |
-| `aqiApi.test.ts` | 11 | Full ISO timestamp matching, zero-preservation, coordinate-caching, timeout cancellation, CO unit conversion, weather fallback. |
-| `impactCalculator.test.ts` | 7 | Minute ventilation exertion scaling, N95 penetration math, commute deltas, zero delta for green modes, no artificial multipliers. |
-| `geminiService.test.ts` | 7 | Header authentication, generationConfig compliance (no unsupported parameters), 400/403/429/5xx error fallbacks, heuristic engine safety. |
+| `aqiApi.test.ts` | 12 | Full ISO timestamp matching, zero-preservation across all pollutants, coordinate-caching, timeout cancellation, CO unit conversion, weather fallback. |
+| `impactCalculator.test.ts` | 8 | Minute ventilation exertion scaling, N95 penetration math, commute deltas, and no invented indoor exposure or heating savings. |
+| `geminiService.test.ts` | 9 | Header authentication, generationConfig compliance, error fallbacks, heuristic safety, cancellation signal handling, and no pollutant-only stagnation claims. |
 | `security.test.ts` | 7 | Memory-only key lifecycle, prompt sanitization (no HTML entity mangling in LLM prompts), key masking, rate limiter. |
-| `cityData.test.ts` | 5 | Preset labeling as offline presets, custom city null-safety (no fake PM2.5/forecasts), runtime household profile validation. |
-| `accessibility.test.tsx` | 5 | axe-core automated audit (0 critical/serious violations), single-control routine buttons, modal focus trap & escape dismissal. |
+| `cityData.test.ts` | 5 | Offline preset labeling, unknown stagnation status without meteorological evidence, custom city null-safety, AQI 0 preservation, runtime profile validation. |
+| `accessibility.test.tsx` | 8 | axe-core audit, one adoption control per routine, selected navigation state, mobile nav landmarks, modal focus trap and Escape dismissal, Tab wrapping, retained input across parent re-render, aria-live chat region. |
 
-**Total Test Coverage**: 42 passed (100% pass rate).
+**Total Test Coverage**: 49 tests; run `npm test`, `npm run test:a11y`, and `npm run build` before release.
 
 ---
 
 ## 🚀 5. Getting Started Locally
 
 ### Prerequisites
-* **Node.js**: v18+ (tested on v20 and v22)
+* **Node.js**: v22.22.2 (required by the current test toolchain; CI and `.node-version` use this version)
 * **npm**: v9+ (tested on v10)
 
 ### Installation & Run

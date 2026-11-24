@@ -12,7 +12,8 @@ describe('City Defaults, Offline Presets & Profile Validation', () => {
     CITIES_DATA.forEach((city) => {
       expect(city.sourceType).toBe('offline_preset');
       expect(city.attribution).toContain('offline demo preset');
-      expect(city.estimatedStagnationRisk).toBeDefined();
+      expect(city.estimatedStagnationRisk).toBe('Unknown');
+      expect(city.hourlyForecast.every((hour) => hour.stagnationRisk === 'Unknown')).toBe(true);
     });
   });
 
@@ -26,7 +27,7 @@ describe('City Defaults, Offline Presets & Profile Validation', () => {
     expect(getAqiCategory(null).category).toBe('Unknown');
   });
 
-  it('creates custom cities WITHOUT calculating fake pollutant speciation or fake forecasts', () => {
+  it('creates custom cities WITHOUT calculating fake pollutant speciation or fake forecasts and preserves AQI 0', () => {
     const custom = createCustomCity('Kanpur', 280, 'India');
 
     expect(custom.name).toBe('Kanpur');
@@ -47,6 +48,11 @@ describe('City Defaults, Offline Presets & Profile Validation', () => {
     expect(custom.hourlyForecast).toEqual([]);
     expect(custom.temperatureC).toBeNull();
     expect(custom.humidityPct).toBeNull();
+
+    // Verify 0 is preserved as valid AQI and not replaced by 100
+    const zeroCity = createCustomCity('PristineZone', 0, 'CleanAir');
+    expect(zeroCity.currentAqi).toBe(0);
+    expect(zeroCity.category).toBe('Good');
   });
 
   it('validates and sanitizes household profiles loaded from untrusted storage', () => {

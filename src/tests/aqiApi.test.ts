@@ -53,10 +53,10 @@ describe('Live Open-Meteo & Copernicus CAMS Telemetry Service', () => {
     expect(evaluateVentilationSafety(null).viable).toBeNull();
   });
 
-  it('estimates ground stagnation risk level with appropriate caution', () => {
-    expect(estimateStagnationRisk(300, 220)).toBe('High');
-    expect(estimateStagnationRisk(150, 80)).toBe('Medium');
-    expect(estimateStagnationRisk(40, 12)).toBe('Low');
+  it('does not infer stagnation risk from pollutant concentrations alone', () => {
+    expect(estimateStagnationRisk(300, 220)).toBe('Unknown');
+    expect(estimateStagnationRisk(150, 80)).toBe('Unknown');
+    expect(estimateStagnationRisk(40, 12)).toBe('Unknown');
     expect(estimateStagnationRisk(null, null)).toBe('Unknown');
   });
 
@@ -276,6 +276,53 @@ describe('Live Open-Meteo & Copernicus CAMS Telemetry Service', () => {
     expect(result.cityData.temperatureC).toBeNull();
     expect(result.cityData.humidityPct).toBeNull();
     expect(result.cityData.isWeatherEstimated).toBe(true);
+  });
+
+  it('preserves zero readings across all pollutants and hourly forecasts without falling back to defaults', async () => {
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('air-quality')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            timezone: 'UTC',
+            utc_offset_seconds: 0,
+            current: {
+              time: '2026-11-24T12:00',
+              us_aqi: 0,
+              pm2_5: 0,
+              pm10: 0,
+              nitrogen_dioxide: 0,
+              ozone: 0,
+              carbon_monoxide: 0,
+              sulphur_dioxide: 0,
+            },
+            hourly: {
+              time: ['2026-11-24T12:00'],
+              us_aqi: [0],
+              pm2_5: [0],
+            },
+          }),
+        } as Response);
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          current: { temperature_2m: 0, relative_humidity_2m: 0 },
+        }),
+      } as Response);
+    });
+
+    const result = await fetchLiveAqi(KNOWN_CITY_COORDINATES[0]);
+    expect(result.cityData.currentAqi).toBe(0);
+    expect(result.cityData.category).toBe('Good');
+    expect(result.cityData.pollutants.pm25).toBe(0);
+    expect(result.cityData.pollutants.pm10).toBe(0);
+    expect(result.cityData.pollutants.no2).toBe(0);
+    expect(result.cityData.pollutants.o3).toBe(0);
+    expect(result.cityData.pollutants.co).toBe(0);
+    expect(result.cityData.pollutants.so2).toBe(0);
+    expect(result.cityData.hourlyForecast[0].aqi).toBe(0);
+    expect(result.cityData.temperatureC).toBe(0);
   });
 
   it('aborts when external signal is triggered', async () => {

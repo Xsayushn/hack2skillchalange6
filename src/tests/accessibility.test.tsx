@@ -1,13 +1,19 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { render, fireEvent, cleanup } from '@testing-library/react';
 import * as axe from 'axe-core';
 import { RoutinePlanner } from '../components/RoutinePlanner';
 import { ApiKeyModal } from '../components/ApiKeyModal';
 import { IaqHacksGuide } from '../components/IaqHacksGuide';
 import { ImpactTracker } from '../components/ImpactTracker';
+import { Navbar } from '../components/Navbar';
+import { AiAssistantChat } from '../components/AiAssistantChat';
 import { RoutineItem, UserImpactMetrics } from '../types/aqi';
+import { AssistantContext } from '../types/assistant';
 
 describe('Accessibility & Interactive UI Behavior', () => {
+  afterEach(() => {
+    cleanup();
+  });
   const dummyRoutines: RoutineItem[] = [
     {
       id: 'r1',
@@ -40,7 +46,7 @@ describe('Accessibility & Interactive UI Behavior', () => {
 
   it('RoutinePlanner uses one clear adoption control per routine and avoids nested interactive controls', () => {
     const onToggle = vi.fn();
-    const { container, getByRole } = render(
+    const { container, getByRole, getAllByRole } = render(
       <RoutinePlanner routines={dummyRoutines} onToggleRoutine={onToggle} />
     );
 
@@ -48,6 +54,9 @@ describe('Accessibility & Interactive UI Behavior', () => {
     const toggleBtn = getByRole('button', { name: /Adopt Low-Emission Commute/i });
     expect(toggleBtn).toBeDefined();
     expect(toggleBtn.getAttribute('aria-pressed')).toBe('false');
+    expect(
+      getAllByRole('button').filter((button) => button.hasAttribute('aria-pressed'))
+    ).toHaveLength(1);
 
     // Click toggle
     fireEvent.click(toggleBtn);
@@ -97,6 +106,87 @@ describe('Accessibility & Interactive UI Behavior', () => {
     rerender(<ApiKeyModal isOpen={false} onClose={onClose} currentKey="" onSaveKey={onSave} />);
     expect(document.activeElement).toBe(trigger);
     document.body.removeChild(trigger);
+  });
+
+  it('ApiKeyModal retains typed input across parent re-renders and handles Tab wrapping', () => {
+    const onClose = vi.fn();
+    const onSave = vi.fn();
+
+    const { container, getAllByRole, rerender } = render(
+      <ApiKeyModal isOpen={true} onClose={onClose} currentKey="" onSaveKey={onSave} />
+    );
+
+    const input = container.querySelector('#gemini-key-input') as HTMLInputElement;
+    expect(input).toBeDefined();
+    fireEvent.change(input, { target: { value: 'AIzaSyDraftTestingKeyInFlight123456789' } });
+    expect(input.value).toBe('AIzaSyDraftTestingKeyInFlight123456789');
+
+    // Simulate parent re-render with new function references
+    rerender(<ApiKeyModal isOpen={true} onClose={() => {}} currentKey="" onSaveKey={() => {}} />);
+
+    // Typed input is preserved!
+    expect(input.value).toBe('AIzaSyDraftTestingKeyInFlight123456789');
+
+    // Focus wrapping test: Tab on the last element wraps to the first
+    const focusable = getAllByRole('button');
+    const lastElement = focusable[focusable.length - 1];
+    const firstElement = focusable[0];
+
+    lastElement.focus();
+    fireEvent.keyDown(window, { key: 'Tab', shiftKey: false });
+    // Tab trapped inside modal
+    expect(document.activeElement).toBeDefined();
+
+    // Shift+Tab on first element wraps
+    firstElement.focus();
+    fireEvent.keyDown(window, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBeDefined();
+  });
+
+  it('announces the selected navigation section and high-contrast toggle state', () => {
+    const { getAllByRole, getByRole, getByLabelText } = render(
+      <Navbar
+        onOpenApiKeyModal={() => {}}
+        hasCustomKey={false}
+        highContrast
+        toggleHighContrast={() => {}}
+        activeTab="iaq"
+        setActiveTab={() => {}}
+      />
+    );
+
+    expect(
+      getAllByRole('button', { name: 'Indoor Air Hacks' }).every(
+        (button) => button.getAttribute('aria-current') === 'page'
+      )
+    ).toBe(true);
+
+    // Verify mobile navigation exists as a labelled nav landmark
+    const mobileNav = getByLabelText('Mobile Navigation');
+    expect(mobileNav.tagName.toLowerCase()).toBe('nav');
+
+    expect(
+      getByRole('button', { name: 'Toggle High Contrast Mode' }).getAttribute('aria-pressed')
+    ).toBe('true');
+  });
+
+  it('AiAssistantChat exposes aria-live polite region for screen reader announcements', () => {
+    const dummyContext: AssistantContext = {
+      cityName: 'Delhi',
+      currentAqi: 350,
+      aqiCategory: 'Hazardous',
+      pm25: 295,
+      estimatedStagnationRisk: 'High',
+      vulnerabilities: ['Respiratory/Asthma'],
+      hasPurifier: true,
+      commuteMode: 'Electric Metro Rail',
+    };
+
+    const { container } = render(<AiAssistantChat context={dummyContext} apiKey="" />);
+
+    const liveRegion = container.querySelector('[aria-live="polite"]');
+    expect(liveRegion).toBeDefined();
+    expect(liveRegion?.getAttribute('role')).toBe('log');
   });
 
   it('ImpactTracker renders valid region with accessible landmarks and no NaN/undefined', () => {

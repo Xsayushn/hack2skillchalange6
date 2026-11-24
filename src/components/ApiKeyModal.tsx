@@ -50,12 +50,18 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
           const last = focusable[focusable.length - 1];
 
           if (e.shiftKey) {
-            if (document.activeElement === first) {
+            if (
+              document.activeElement === first ||
+              !modalRef.current.contains(document.activeElement)
+            ) {
               e.preventDefault();
               last.focus();
             }
           } else {
-            if (document.activeElement === last) {
+            if (
+              document.activeElement === last ||
+              !modalRef.current.contains(document.activeElement)
+            ) {
               e.preventDefault();
               first.focus();
             }
@@ -83,7 +89,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
     }
     if (!validateApiKey(trimmed)) {
       setError(
-        'Key appears invalid. A valid Google Gemini API key starts with "AIza..." and contains at least 35 characters.'
+        'Key format is not recognized. Use an AI Studio key starting with "AIza" or "AQ." and at least 35 characters.'
       );
       return;
     }
@@ -145,6 +151,11 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
               It resides purely in volatile browser memory for the active tab session and is cleared
               when the tab closes or on reload.
             </p>
+            <p className="leading-relaxed">
+              This app runs in your browser, so a key you enter can be seen by you and browser
+              extensions. Use a personal key with usage limits; never enter a shared or production
+              secret.
+            </p>
           </div>
 
           <div>
@@ -158,6 +169,8 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
               ref={inputRef}
               id="gemini-key-input"
               type="password"
+              autoComplete="off"
+              spellCheck={false}
               placeholder="AIzaSy..."
               value={inputVal}
               onChange={(e) => {
@@ -192,7 +205,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
               Get a free Google AI Studio Key{' '}
               <ExternalLink className="w-3 h-3" aria-hidden="true" />
             </a>
-            <span className="text-[11px] text-slate-500">
+            <span className="text-xs text-slate-500">
               Transmitted via HTTPS header <code>x-goog-api-key</code>
             </span>
           </div>

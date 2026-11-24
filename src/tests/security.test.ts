@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
   sanitizePrompt,
-  sanitizeHtml,
   maskApiKey,
   validateApiKey,
   SimpleRateLimiter,
@@ -44,14 +43,10 @@ describe('Security & Credential Sanitization Utilities', () => {
     expect(sanitized.length).toBe(500);
   });
 
-  it('escapes HTML tags when safe DOM string rendering is required', () => {
-    const malicious = '<script>alert("xss")</script>&"\'';
-    const escaped = sanitizeHtml(malicious);
-
-    expect(escaped).not.toContain('<script>');
-    expect(escaped).toContain('&lt;script&gt;');
-    expect(escaped).toContain('&amp;');
-    expect(escaped).toContain('&quot;');
+  it('safely handles empty or non-string inputs in sanitizePrompt', () => {
+    expect(sanitizePrompt('')).toBe('');
+    expect(sanitizePrompt(null as unknown as string)).toBe('');
+    expect(sanitizePrompt(undefined as unknown as string)).toBe('');
   });
 
   it('masks API keys securely showing only 4-char prefix and suffix', () => {
@@ -65,8 +60,11 @@ describe('Security & Credential Sanitization Utilities', () => {
 
   it('validates Google Gemini API key format correctly', () => {
     expect(validateApiKey('AIzaSyAbcdefghijklmnopqrstuvwxyz1234567')).toBe(true);
+    expect(validateApiKey('AQ.abcdefghijklmnopqrstuvxyz123456789')).toBe(true);
     expect(validateApiKey('invalid-key-too-short')).toBe(false);
     expect(validateApiKey('NotAIzaSyAbcdefghijklmnopqrstuvwxyz1234567')).toBe(false);
+    expect(validateApiKey('AQ.short')).toBe(false);
+    expect(validateApiKey('AQ.abcdefghijklmnopqrstuvwxyz 123456789')).toBe(false);
     expect(validateApiKey('')).toBe(false);
   });
 

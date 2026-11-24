@@ -33,11 +33,19 @@ CURRENT CONTEXT (Numerical Model Telemetry):
 
 SCIENTIFIC & SAFETY CONSTRAINTS:
 1. SCIENTIFIC HONESTY: Ambient forecasts come from atmospheric numerical models (such as CAMS), not physical indoor sensors. Clearly state that indoor air quality is not directly measured.
-2. NO UNIVERSAL TIME WINDOWS: Do not tell users that 1:30 PM–3:30 PM is universally safe. Natural ventilation depends entirely on actual outdoor pollutant concentrations; when ambient AQI > 100, natural ventilation is generally not recommended.
-3. NO INVERSION CERTAINTY: Refer to atmospheric conditions as "estimated surface-layer stagnation risk". Do not claim a confirmed thermal inversion unless vertical sounding measurements are referenced.
-4. BARRIER PROTECTION: For sensitive individuals (infants, elderly, asthma sufferers), recommend well-fitted N95 respirators, mechanical filtration (HEPA or sealed DIY MERV-13 units), and minimizing strenuous outdoor aerobic exertion.
-5. NO MEDICAL DIAGNOSIS: Never prescribe medications, dosages, or clinical treatments. Advise users with severe symptoms to consult healthcare professionals.
-6. PRACTICAL LOW-COST HACKS: Suggest evidence-based methods such as Corsi-Rosenthal boxes (with fan electrical safety precautions), wet dusting vs dry sweeping, and isolating kitchen range exhaust.`;
+2. STAGNATION EVIDENCE: This app does not currently provide wind or vertical-profile observations. Report stagnation assessment as unavailable; do not infer stagnation or a thermal inversion from pollutant concentrations alone.
+3. NO UNIVERSAL TIME WINDOWS: Do not tell users that 1:30 PM–3:30 PM is universally safe. Base ventilation guidance on the available outdoor AQI forecast; when ambient AQI > 100, natural ventilation is generally not recommended.
+4. NO INVERSION CERTAINTY: Do not claim a confirmed thermal inversion unless vertical sounding measurements are available.
+5. BARRIER PROTECTION: For sensitive individuals (infants, elderly, asthma sufferers), recommend well-fitted N95 respirators, mechanical filtration (HEPA or sealed DIY MERV-13 units), and minimizing strenuous outdoor aerobic exertion.
+6. NO MEDICAL DIAGNOSIS: Never prescribe medications, dosages, or clinical treatments. Advise users with severe symptoms to consult healthcare professionals.
+7. PRACTICAL LOW-COST HACKS: Suggest evidence-based methods such as Corsi-Rosenthal boxes (with fan electrical safety precautions), wet dusting vs dry sweeping, and isolating kitchen range exhaust.`;
+}
+
+function generateMsgId(prefix: string = 'msg'): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return `${prefix}-${crypto.randomUUID()}`;
+  }
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
 /**
@@ -51,7 +59,7 @@ export function generateHeuristicResponse(
   customNotice?: string
 ): ChatMessage {
   const query = userPrompt.toLowerCase();
-  const id = `msg-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  const id = generateMsgId('msg');
   const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
   const aqiDisplay =
@@ -78,8 +86,8 @@ export function generateHeuristicResponse(
 
 Currently, numerical models estimate **${aqiDisplay}** with fine particulate (PM2.5) around **${pm25Display}**.
 
-**Boundary Layer & Stagnation:**
-During winter periods, cold ground temperatures often create a shallow surface boundary layer that restricts vertical pollutant dispersion, causing vehicle exhaust and combustion soot to accumulate near ground level.
+**Stagnation Assessment:**
+Wind and vertical-profile observations are unavailable, so this app cannot determine whether stagnation or an inversion is present. Elevated pollutant values alone do not establish the cause.
 
 **Ventilation Protocol:**
 ${
@@ -253,7 +261,8 @@ export async function sendChatMessage(
   history: ChatMessage[],
   userPrompt: string,
   context: AssistantContext,
-  apiKey: string
+  apiKey: string,
+  options?: { signal?: AbortSignal; timeoutMs?: number }
 ): Promise<ChatMessage> {
   const sanitizedPrompt = sanitizePrompt(userPrompt, 2048);
   if (!sanitizedPrompt) {
@@ -297,10 +306,20 @@ export async function sendChatMessage(
     parts: [{ text: sanitizedPrompt }],
   });
 
+  const timeoutMs = options?.timeoutMs ?? 15000;
   const timeoutController = new AbortController();
-  const timer = setTimeout(() => timeoutController.abort(), 15000);
+  const timer = setTimeout(() => timeoutController.abort(), timeoutMs);
+
+  const callerSignal = options?.signal;
+  const abortHandler = () => timeoutController.abort();
 
   try {
+    if (callerSignal) {
+      if (callerSignal.aborted) {
+        throw new DOMException('Request was aborted by caller', 'AbortError');
+      }
+      callerSignal.addEventListener('abort', abortHandler);
+    }
     const response = await fetch(GEMINI_API_ENDPOINT, {
       method: 'POST',
       headers: {
@@ -355,7 +374,7 @@ export async function sendChatMessage(
     }
 
     return {
-      id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      id: generateMsgId('msg'),
       role: 'assistant',
       content: candidateText.trim(),
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -385,5 +404,10 @@ export async function sendChatMessage(
       context,
       `Network error (${errorMsg}). Switched to offline heuristic engine.`
     );
+  } finally {
+    clearTimeout(timer);
+    if (callerSignal) {
+      callerSignal.removeEventListener('abort', abortHandler);
+    }
   }
 }

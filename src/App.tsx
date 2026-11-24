@@ -22,6 +22,8 @@ const AiAssistantChat = lazy(() =>
   import('./components/AiAssistantChat').then((m) => ({ default: m.AiAssistantChat }))
 );
 
+import { setEphemeralApiKey, getEphemeralApiKey } from './services/security';
+
 const STORAGE_KEY_PROFILE = 'aeroguardian_profile';
 const STORAGE_KEY_CONTRAST = 'aeroguardian_contrast';
 
@@ -38,6 +40,8 @@ const TabLoadingFallback: React.FC = () => (
 
 export const App: React.FC = () => {
   const [citiesList, setCitiesList] = useState<CityData[]>(CITIES_DATA);
+  // Keep telemetry loading stable while still resolving user-added locations.
+  const citiesListRef = useRef(citiesList);
   const [selectedCityId, setSelectedCityId] = useState<string>('delhi');
   const [dataSourceLabel, setDataSourceLabel] = useState<string>('Numerical Model Forecast');
   const [isLiveLoading, setIsLiveLoading] = useState<boolean>(false);
@@ -48,10 +52,14 @@ export const App: React.FC = () => {
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState<boolean>(false);
 
   // Security rule: Memory-only key handling by default (never persisted to localStorage)
-  const [apiKey, setApiKey] = useState<string>('');
+  const [apiKey, setApiKey] = useState<string>(() => getEphemeralApiKey() || '');
 
   const [highContrast, setHighContrast] = useState<boolean>(() => {
-    return localStorage.getItem(STORAGE_KEY_CONTRAST) === 'true';
+    try {
+      return localStorage.getItem(STORAGE_KEY_CONTRAST) === 'true';
+    } catch {
+      return false;
+    }
   });
 
   // Track request sequence to prevent out-of-order race conditions
@@ -75,74 +83,79 @@ export const App: React.FC = () => {
     return citiesList.find((c) => c.id === selectedCityId) || citiesList[0];
   }, [citiesList, selectedCityId]);
 
+  useEffect(() => {
+    citiesListRef.current = citiesList;
+  }, [citiesList]);
+
   // Load telemetry with coordinate caching, sequence validation, and cancellation
-  const loadLiveAqi = useCallback(
-    async (cityId: string, bypassCache: boolean = false) => {
-      // If it's a custom manual estimate with no coordinates, don't query external API
-      const foundCity = citiesList.find((c) => c.id === cityId);
-      if (foundCity?.isCustomCity) {
-        setDataSourceLabel('Manual User Estimate');
-        setTelemetryError(null);
+  const loadLiveAqi = useCallback(async (cityId: string, bypassCache: boolean = false) => {
+    // If it's a custom manual estimate with no coordinates, don't query external API
+    const foundCity = citiesListRef.current.find((c) => c.id === cityId);
+    if (foundCity?.isCustomCity) {
+      setDataSourceLabel('Manual User Estimate');
+      setTelemetryError(null);
+      return;
+    }
+
+    const coords =
+      KNOWN_CITY_COORDINATES.find((c) => c.id === cityId) ||
+      (foundCity?.lat != null && foundCity.lon != null
+        ? {
+            id: foundCity.id,
+            name: foundCity.name,
+            country: foundCity.country,
+            lat: foundCity.lat,
+            lon: foundCity.lon,
+          }
+        : null);
+
+    if (!coords) return;
+
+    // Abort any obsolete in-flight request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    const currentSeq = ++requestSeqRef.current;
+    setIsLiveLoading(true);
+    setTelemetryError(null);
+
+    try {
+      const result = await fetchLiveAqi(coords, {
+        bypassCache,
+        signal: controller.signal,
+      });
+
+      // Guard against race conditions
+      if (currentSeq !== requestSeqRef.current) {
         return;
       }
 
-      const coords =
-        KNOWN_CITY_COORDINATES.find((c) => c.id === cityId) ||
-        (foundCity?.lat && foundCity?.lon
-          ? {
-              id: foundCity.id,
-              name: foundCity.name,
-              country: foundCity.country,
-              lat: foundCity.lat,
-              lon: foundCity.lon,
-            }
-          : null);
-
-      if (!coords) return;
-
-      // Abort any obsolete in-flight request
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-      const controller = new AbortController();
-      abortControllerRef.current = controller;
-
-      const currentSeq = ++requestSeqRef.current;
-      setIsLiveLoading(true);
+      setCitiesList((prev) => prev.map((c) => (c.id === cityId ? result.cityData : c)));
+      setDataSourceLabel(result.isCached ? 'Cached CAMS Model' : 'Live CAMS Model');
       setTelemetryError(null);
+    } catch (err: unknown) {
+      if (currentSeq !== requestSeqRef.current) return;
+      if (err instanceof DOMException && err.name === 'AbortError') return;
 
-      try {
-        const result = await fetchLiveAqi(coords, {
-          bypassCache,
-          signal: controller.signal,
-        });
-
-        // Guard against race conditions
-        if (currentSeq !== requestSeqRef.current) {
-          return;
-        }
-
-        setCitiesList((prev) => prev.map((c) => (c.id === cityId ? result.cityData : c)));
-        setDataSourceLabel(result.isCached ? 'Cached CAMS Model' : 'Live CAMS Model');
-        setTelemetryError(null);
-      } catch (err: unknown) {
-        if (currentSeq !== requestSeqRef.current) return;
-        if (err instanceof DOMException && err.name === 'AbortError') return;
-
-        const msg = err instanceof Error ? err.message : 'Network error';
-        setTelemetryError(`Could not refresh telemetry (${msg}). Displaying offline baseline.`);
-        setDataSourceLabel('Offline Demo Preset');
-      } finally {
-        if (currentSeq === requestSeqRef.current) {
-          setIsLiveLoading(false);
-        }
+      const msg = err instanceof Error ? err.message : 'Network error';
+      setTelemetryError(`Could not refresh telemetry (${msg}). Displaying offline baseline.`);
+      setDataSourceLabel('Offline Demo Preset');
+    } finally {
+      if (currentSeq === requestSeqRef.current) {
+        setIsLiveLoading(false);
       }
-    },
-    [citiesList]
-  );
+    }
+  }, []);
 
   useEffect(() => {
     loadLiveAqi(selectedCityId, false);
+    return () => {
+      requestSeqRef.current += 1;
+      abortControllerRef.current?.abort();
+    };
   }, [selectedCityId, loadLiveAqi]);
 
   const handleRefreshLive = useCallback(() => {
@@ -261,9 +274,11 @@ export const App: React.FC = () => {
     );
   }, []);
 
-  // API key stored purely in memory
+  // API key stored purely in volatile session memory
   const handleSaveApiKey = useCallback((key: string) => {
-    setApiKey(key.trim());
+    const trimmed = key.trim();
+    setEphemeralApiKey(trimmed || null);
+    setApiKey(trimmed);
   }, []);
 
   // Memoized impact metrics without artificial multipliers
@@ -296,6 +311,12 @@ export const App: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:rounded-lg focus:bg-white focus:px-4 focus:py-3 focus:text-emerald-900 focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-emerald-600"
+      >
+        Skip to main content
+      </a>
       <Navbar
         onOpenApiKeyModal={() => setIsApiKeyModalOpen(true)}
         hasCustomKey={Boolean(apiKey)}
@@ -326,7 +347,10 @@ export const App: React.FC = () => {
         </div>
       )}
 
-      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+      <main
+        id="main-content"
+        className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8 space-y-8"
+      >
         {/* Tab 1: Dashboard */}
         {activeTab === 'dashboard' && (
           <div className="space-y-8">

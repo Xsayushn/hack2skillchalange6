@@ -2,9 +2,9 @@ name: CI Pipeline
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   verify:
@@ -12,29 +12,29 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: 20
-        cache: 'npm'
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.2
+          cache: 'npm'
 
-    - name: 1. Install dependencies
-      run: npm ci
+      - name: 1. Install dependencies
+        run: npm ci
 
-    - name: 2. Run ESLint code quality check
-      run: npm run lint
+      - name: 2. Run ESLint code quality check
+        run: npm run lint
 
-    - name: 3. Run Prettier formatting check
-      run: npm run format:check
+      - name: 3. Run Prettier formatting check
+        run: npm run format:check
 
-    - name: 4. Run Vitest automated unit test suite
-      run: npm test
+      - name: 4. Run Vitest automated unit test suite
+        run: npm test
 
-    - name: 5. Run axe-core accessibility checks
-      run: npm run test:a11y
+      - name: 5. Run axe-core accessibility checks
+        run: npm run test:a11y
 
-    - name: 6. Run strict TypeScript verification & production build
-      run: npm run build
+      - name: 6. Run strict TypeScript verification & production build
+        run: npm run build

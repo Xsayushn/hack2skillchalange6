@@ -80,7 +80,7 @@ export const RoutinePlanner: React.FC<RoutinePlannerProps> = ({ routines, onTogg
                         {routine.title}
                       </h3>
                       {routine.isAdopted && (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-900">
+                        <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-900">
                           Adopted Today
                         </span>
                       )}
@@ -123,7 +123,7 @@ export const RoutinePlanner: React.FC<RoutinePlannerProps> = ({ routines, onTogg
                     </p>
 
                     {/* Explicit mathematical assumptions */}
-                    <p className="text-[11px] text-slate-500 mt-1.5 flex items-start gap-1.5 bg-slate-100/80 p-2 rounded-lg border border-slate-200">
+                    <p className="text-xs text-slate-500 mt-1.5 flex items-start gap-1.5 bg-slate-100/80 p-2 rounded-lg border border-slate-200">
                       <Info
                         className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5"
                         aria-hidden="true"
@@ -147,13 +147,6 @@ export const RoutinePlanner: React.FC<RoutinePlannerProps> = ({ routines, onTogg
                       -{routine.exposureAvoidedPm25Ug} µg PM2.5
                     </span>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => onToggleRoutine(routine.id)}
-                    className="text-[11px] text-emerald-700 hover:text-emerald-900 underline mt-2 font-medium focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none rounded"
-                  >
-                    {routine.isAdopted ? 'Remove' : 'Select'}
-                  </button>
                 </div>
               </div>
             </div>

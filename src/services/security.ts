@@ -48,23 +48,6 @@ export function sanitizePrompt(input: string, maxLength: number = 2048): string 
     .trim();
 }
 
-/**
- * Basic HTML escaping for safe string rendering when React JSX is bypassed.
- */
-export function sanitizeHtml(input: string): string {
-  if (!input || typeof input !== 'string') return '';
-  return input
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-    .trim();
-}
-
-// Backwards-compatible alias
-export const sanitizeInput = sanitizePrompt;
-
 export function maskApiKey(key: string): string {
   if (!key || key.length < 8) return '••••••••';
   const start = key.slice(0, 4);
@@ -75,8 +58,10 @@ export function maskApiKey(key: string): string {
 export function validateApiKey(key: string): boolean {
   if (!key || typeof key !== 'string') return false;
   const trimmed = key.trim();
-  // Standard AI Studio / Gemini API key format (starts with AIza and >= 35 chars)
-  return trimmed.startsWith('AIza') && trimmed.length >= 35;
+  // AI Studio issues legacy AIza keys and newer AQ. keys. Authentication itself is
+  // validated by the Gemini API; this is only a basic client-side format check.
+  const hasSupportedPrefix = trimmed.startsWith('AIza') || trimmed.startsWith('AQ.');
+  return hasSupportedPrefix && trimmed.length >= 35 && !/\s/.test(trimmed);
 }
 
 /**

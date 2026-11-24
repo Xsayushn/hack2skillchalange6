@@ -98,10 +98,10 @@ export const IaqHacksGuide: React.FC = () => {
                       <h3 className="text-sm sm:text-base font-bold text-slate-900">
                         {hack.title}
                       </h3>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-800 border border-slate-300">
+                      <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-800 border border-slate-300">
                         {hack.costLevel}
                       </span>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-100 text-teal-800 border border-teal-200">
+                      <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-teal-100 text-teal-800 border border-teal-200">
                         {hack.difficulty}
                       </span>
                     </div>
@@ -158,7 +158,7 @@ export const IaqHacksGuide: React.FC = () => {
                       {hack.steps.map((step, idx) => (
                         <li key={idx} className="flex items-start gap-2.5 text-xs text-slate-700">
                           <span
-                            className="w-5 h-5 rounded-full bg-teal-600 text-white font-bold flex items-center justify-center shrink-0 text-[10px]"
+                            className="w-5 h-5 rounded-full bg-teal-600 text-white font-bold flex items-center justify-center shrink-0 text-xs"
                             aria-hidden="true"
                           >
                             {idx + 1}

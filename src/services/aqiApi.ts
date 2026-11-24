@@ -115,17 +115,15 @@ export function evaluateVentilationSafety(aqi: number | null): {
 }
 
 /**
- * Estimates stagnation risk level using atmospheric pollutant concentration.
- * Clearly framed as a ground-level stagnation risk, not a verified physical thermal inversion.
+ * Pollutant concentrations alone cannot establish stagnation or a thermal inversion.
+ * Return Unknown until meteorological inputs (such as wind and boundary-layer data)
+ * are available to support that assessment.
  */
 export function estimateStagnationRisk(
-  aqi: number | null,
-  pm25: number | null
+  _aqi: number | null,
+  _pm25: number | null
 ): StagnationRiskLevel {
-  if (aqi === null && pm25 === null) return 'Unknown';
-  if ((aqi !== null && aqi >= 250) || (pm25 !== null && pm25 >= 180)) return 'High';
-  if ((aqi !== null && aqi >= 101) || (pm25 !== null && pm25 >= 60)) return 'Medium';
-  return 'Low';
+  return 'Unknown';
 }
 
 export interface FetchLiveAqiOptions {
@@ -258,14 +256,10 @@ export async function fetchLiveAqi(
       }
     }
 
-    // Ground-level stagnation risk
+    // Pollutant levels alone do not establish stagnation; no meteorological estimate is shown.
     const stagnationRisk = estimateStagnationRisk(currentAqi, pm25);
     const stagnationExplanation =
-      stagnationRisk === 'High'
-        ? 'Numerical model indicates surface particulate buildup consistent with stagnant boundary conditions. Actual thermal inversion layers require vertical atmospheric sounding data.'
-        : stagnationRisk === 'Medium'
-          ? 'Moderate surface accumulation modeled. Regional ventilation varies by terrain.'
-          : 'Model predicts active boundary mixing and dispersion.';
+      'Surface stagnation is not assessed: pollutant forecasts do not establish wind conditions or a thermal inversion.';
 
     // Forecast processing: Compare full ISO timestamp; never truncate 14:15 to 14:00.
     const hourlyForecast: HourlyForecast[] = [];

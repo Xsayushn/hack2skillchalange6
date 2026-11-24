@@ -81,6 +81,26 @@ describe('Scientific Impact Calculator', () => {
     });
   });
 
+  it('does not report unmeasured indoor exposure or heating savings as invented values', () => {
+    const routines = generateDailyRoutines(dummyProfile, 280, null);
+    const byId = Object.fromEntries(routines.map((routine) => [routine.id, routine]));
+
+    expect(byId['routine-morning-exercise'].exposureAvoidedPm25Ug).toBe(0);
+    expect(byId['routine-cooking'].exposureAvoidedPm25Ug).toBe(0);
+    expect(byId['routine-heating'].exposureAvoidedPm25Ug).toBe(0);
+    expect(byId['routine-heating'].emissionSavedKgCo2).toBe(0);
+    expect(byId['routine-cooking'].assumptions).toContain('not measured');
+    expect(byId['routine-heating'].assumptions).toContain('not measured');
+
+    const measuredAmbientRoutines = generateDailyRoutines(dummyProfile, 280, 210);
+    expect(
+      measuredAmbientRoutines.find((r) => r.id === 'routine-cooking')?.exposureAvoidedPm25Ug
+    ).toBe(0);
+    expect(
+      measuredAmbientRoutines.find((r) => r.id === 'routine-heating')?.emissionSavedKgCo2
+    ).toBe(0);
+  });
+
   it('does NOT apply artificial purifier multipliers or family-size multipliers', () => {
     const routines = generateDailyRoutines(dummyProfile, 250, 180);
     routines[0].isAdopted = true;

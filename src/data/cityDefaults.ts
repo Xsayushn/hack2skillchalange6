@@ -11,7 +11,7 @@ import {
  * Note: These presets represent historical winter smog baseline examples for demonstration
  * purposes when offline. They are NOT live physical sensor measurements.
  */
-export const CITIES_DATA: CityData[] = [
+const OFFLINE_CITY_PRESETS: CityData[] = [
   {
     id: 'delhi',
     name: 'Delhi NCR',
@@ -323,6 +323,25 @@ export const CITIES_DATA: CityData[] = [
   },
 ];
 
+// Offline examples contain pollutant and AQI values only. Do not infer a
+// meteorological stagnation risk or repeat historical causal claims as current data.
+export const CITIES_DATA: CityData[] = OFFLINE_CITY_PRESETS.map((city) => ({
+  ...city,
+  estimatedStagnationRisk: 'Unknown',
+  stagnationExplanation:
+    'Surface stagnation is not assessed: this offline example has no current wind or vertical-profile data.',
+  hourlyForecast: city.hourlyForecast.map((hour) => ({
+    ...hour,
+    stagnationRisk: 'Unknown',
+    recommendation:
+      hour.ventilationViable === null
+        ? 'Ventilation guidance is unavailable because forecast AQI is missing.'
+        : hour.ventilationViable
+          ? `Illustrative preset only: AQI ${hour.aqi ?? 'unavailable'} is within this app’s brief-ventilation guidance threshold.`
+          : `Illustrative preset only: AQI ${hour.aqi ?? 'unavailable'} exceeds this app’s ventilation guidance threshold.`,
+  })),
+}));
+
 export function getAqiCategory(aqi: number | null): {
   category: AqiCategory;
   color: string;
@@ -376,6 +395,16 @@ export function getAqiCategory(aqi: number | null): {
 }
 
 /**
+ * Validates and converts an unknown value to a finite number, preserving zero.
+ */
+export const num = (v: unknown, d: number): number =>
+  typeof v === 'number' && Number.isFinite(v)
+    ? v
+    : typeof v === 'string' && v.trim() !== '' && Number.isFinite(Number(v))
+      ? Number(v)
+      : d;
+
+/**
  * Creates a custom city entry from user manual input.
  * CRITICAL SCIENTIFIC INTEGRITY: Does NOT fabricate speciation (PM2.5, PM10, NO2, O3, CO, SO2)
  * or hourly forecast curves from a single scalar AQI value. Those fields remain unavailable.
@@ -385,7 +414,7 @@ export function createCustomCity(
   aqi: number,
   country: string = 'Manual Entry'
 ): CityData {
-  const safeAqi = Math.max(0, Math.min(500, Math.round(Number(aqi) || 100)));
+  const safeAqi = Math.max(0, Math.min(500, Math.round(num(aqi, 100))));
   const { category } = getAqiCategory(safeAqi);
 
   return {
